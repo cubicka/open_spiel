@@ -59,7 +59,6 @@ flags.DEFINE_bool("verbose", False, "Show the MCTS stats of possible moves.")
 
 FLAGS = flags.FLAGS
 
-
 def main(unused_argv):
   config = alpha_zero.Config(
       game=FLAGS.game,

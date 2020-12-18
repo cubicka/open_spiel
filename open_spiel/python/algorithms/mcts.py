@@ -243,6 +243,7 @@ class MCTSBot(pyspiel.Bot):
       raise ValueError("Game must have terminal rewards.")
     if game_type.dynamics != pyspiel.GameType.Dynamics.SEQUENTIAL:
       raise ValueError("Game must have sequential turns.")
+    print("Ahaaa")
 
     self._game = game
     self.uct_c = uct_c

@@ -120,6 +120,8 @@ set(GAME_SOURCES
   tiny_bridge.h
   tiny_hanabi.cc
   tiny_hanabi.h
+  tokaido.cc
+  tokaido.h
   trade_comm.cc
   trade_comm.h
   y.cc
@@ -431,6 +433,10 @@ add_executable(tiny_hanabi_test tiny_hanabi_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
                $<TARGET_OBJECTS:algorithms>)
 add_test(tiny_hanabi_test tiny_hanabi_test)
+
+add_executable(tokaido_test tokaido_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(tokaido_test tokaido_test)
 
 add_executable(trade_comm_test trade_comm_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
