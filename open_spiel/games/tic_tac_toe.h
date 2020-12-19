@@ -63,10 +63,13 @@ class TicTacToeState : public State {
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
+
   std::string InformationStateString(Player player) const override;
   std::string ObservationString(Player player) const override;
   void ObservationTensor(Player player,
                          absl::Span<float> values) const override;
+
+
   std::unique_ptr<State> Clone() const override;
   void UndoAction(Player player, Action move) override;
   std::vector<Action> LegalActions() const override;
@@ -95,14 +98,18 @@ class TicTacToeGame : public Game {
   std::unique_ptr<State> NewInitialState() const override {
     return std::unique_ptr<State>(new TicTacToeState(shared_from_this()));
   }
+
+
+  int MaxGameLength() const override { return kNumCells; }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override { return -1; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return 1; }
+
+
   std::vector<int> ObservationTensorShape() const override {
     return {kCellStates, kNumRows, kNumCols};
   }
-  int MaxGameLength() const override { return kNumCells; }
 };
 
 CellState PlayerToState(Player player);

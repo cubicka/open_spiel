@@ -42,65 +42,61 @@ class TokaidoState : public State {
   TokaidoState(std::shared_ptr<const Game> game);
 
   Player CurrentPlayer() const override;
+  std::string ActionToString(Player player, Action move_id) const override;
+  std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
 
-  std::string ToString() const override;
+
   std::string ObservationString(Player player) const override;
   void ObservationTensor(Player player,
                          absl::Span<float> values) const override;
 
+
   std::unique_ptr<State> Clone() const override;
-
   std::vector<Action> LegalActions() const override;
-  std::string ActionToString(Player player, Action move_id) const override;
-
-  // std::string BullsToString() const; 
-  // std::string BoardToString() const;
-  // std::string HandsToString() const;
-  // std::string StackToString() const;
-  // std::pair<int,int> PlacementIndex(int card) const;
-  // void PlaceOnStack();
-  // void SwapBull(int row);
-  // int CardScore(int card) const;
-
- int numPlayers;
- int shuffledCards[104];
- std::array<std::array<int, 10>, 10> playerHands;
- std::array<std::array<int, 2>, 10> cardsToBePlaced;
- std::array<std::array<int, 5>, 4> cardStacks;
- int scores[10];
- bool bulls[10][105];
-
-  // 0 - Pick card to be placed at the table
-  // 1 - Pick a 5-card stack to be taken from table
-  int currMode;
-  int currPlayer;
-  int currStack;
+  std::vector<std::pair<Action, double>> ChanceOutcomes() const override;
 
  protected:
   void DoApplyAction(Action move_id) override;
 
+ private:
 };
 
 class TokaidoGame : public Game {
  public:
   explicit TokaidoGame(const GameParameters& params);
-  int NumDistinctActions() const override { return 109; }
-  std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(new TokaidoState(shared_from_this()));
-  }
 
+  int NumDistinctActions() const override { return 6; }
+  std::unique_ptr<State> NewInitialState() const override {
+    return std::unique_ptr<State>(
+        new TokaidoState(shared_from_this(), dice_outcomes_, horizon_, win_score_));
+  }
+  int MaxChanceOutcomes() const override { return dice_outcomes_; }
 
   // There is arbitrarily chosen number to ensure the game is finite.
-  int MaxGameLength() const override { return 300; }
-  int NumPlayers() const override { return 10; }
+  int MaxGameLength() const override { return horizon_; }
+  // TODO: verify whether this bound is tight and/or tighten it.
+  int MaxChanceNodesInHistory() const override { return MaxGameLength(); }
+
+  int NumPlayers() const override { return num_players_; }
   double MinUtility() const override { return -1; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return +1; }
-  std::vector<int> ObservationTensorShape() const override {
-    return {18, 104, 1};
-  }
+  std::vector<int> ObservationTensorShape() const override;
+
+ private:
+  // Number of different dice outcomes, i.e. 6.
+  int dice_outcomes_;
+
+  // Maximum number of moves before draw.
+  int horizon_;
+
+  // Number of players in this game.
+  int num_players_;
+
+  // The amount needed to win.
+  int win_score_;
 };
 
 }  // namespace tokaido

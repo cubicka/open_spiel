@@ -16,28 +16,17 @@
 
 #include <sys/types.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "open_spiel/game_parameters.h"
 #include "open_spiel/spiel.h"
+#include "open_spiel/utils/tensor_view.h"
 
 namespace open_spiel {
 namespace tokaido {
 
 namespace {
-// Moves.
-enum ActionType { kRoll = 0, kStop = 1 };
-
-// Bin size for the information state vectors: how many score values to put
-// into one bin. Higher means more coarser.
-constexpr int kBinSize = 1;
-
-// Default parameters.
-constexpr int kDefaultDiceOutcomes = 6;
-constexpr int kDefaultHorizon = 1000;
-constexpr int kDefaultPlayers = 2;
-constexpr int kDefaultWinScore = 100;
-
 // Facts about the game
 const GameType kGameType{
     /*short_name=*/"tokaido",
@@ -48,18 +37,13 @@ const GameType kGameType{
     GameType::Utility::kZeroSum,
     GameType::RewardModel::kTerminal,
     /*max_num_players=*/10,
-    /*min_num_players=*/2,
+    /*min_num_players=*/10,
     /*provides_information_state_string=*/false,
     /*provides_information_state_tensor=*/false,
     /*provides_observation_string=*/true,
     /*provides_observation_tensor=*/true,
-    /*parameter_specification=*/
-    {
-        {"players", GameParameter(kDefaultPlayers)},
-        {"horizon", GameParameter(kDefaultHorizon)},
-        {"winscore", GameParameter(kDefaultWinScore)},
-        {"diceoutcomes", GameParameter(kDefaultDiceOutcomes)},
-    }};
+    /*parameter_specification=*/ {}
+};
 
 static std::shared_ptr<const Game> Factory(const GameParameters& params) {
   return std::shared_ptr<const Game>(new TokaidoGame(params));
@@ -68,46 +52,148 @@ static std::shared_ptr<const Game> Factory(const GameParameters& params) {
 REGISTER_SPIEL_GAME(kGameType, Factory);
 }  // namespace
 
-std::string TokaidoState::ActionToString(Player player, Action move_id) const {
-  if (player == kChancePlayerId) {
-    return absl::StrCat("Roll ", 1 + move_id);
-  } else if (move_id == kRoll) {
-    return "roll";
-  } else {
-    return "stop";
+int CardScore(int card) {
+  if (card == 55) return 7;
+  else if (card%11 == 0) return 5;
+  else if (card%10 == 0) return 3;
+  else if (card%5 == 0) return 2;
+  else return 1;
+}
+
+bool compareCardStacks(std::array<int, 5> &a, std::array<int, 5> &b) {
+  return a[0] < b[0];
+}
+
+TokaidoState::TokaidoState(std::shared_ptr<const Game> game): State(game) {
+  for (int i=0; i < 104; i++) shuffledCards[i] = i + 1;
+  std::random_device rng;
+  std::mt19937 urng(rng());
+  std::shuffle(shuffledCards, shuffledCards + 104, urng);
+  // std::random_device rng = std::uniform_real_distribution<double>(0., 1.);
+  numPlayers = (rng() % 9) + 2;
+
+  for (int i=0; i < numPlayers; i++) {
+    for (int k=0; k < 10; k++) {
+      playerHands[i][k] = shuffledCards[i*10 + k];
+    }
+    std::sort(begin(playerHands[i]), end(playerHands[i]));
+
+    for (int k=0; k<=104; k++) bulls[i][k] = false;
   }
+
+  for (int i=0; i<4; i++) {
+    for (int k=0; k<5; k++) cardStacks[i][k] = -1;
+    cardStacks[i][0] = shuffledCards[numPlayers * 10 + i];
+  }
+  std::sort(begin(cardStacks), end(cardStacks), compareCardStacks);
+
+  currMode = 0;
+  currPlayer = 0;
 }
 
 bool TokaidoState::IsTerminal() const {
-  if (total_moves_ >= horizon_) {
-    return true;
-  }
+  return currMode == -1;
+}
 
-  for (auto p = Player{0}; p < num_players_; p++) {
-    if (scores_[p] >= win_score_) {
-      return true;
-    }
-  }
-  return false;
+int TokaidoState::CurrentPlayer() const {
+  return IsTerminal() ? kTerminalPlayerId : currPlayer;
 }
 
 std::vector<double> TokaidoState::Returns() const {
   if (!IsTerminal()) {
-    return std::vector<double>(num_players_, 0.0);
+    return std::vector<double>(10, 0.0);
   }
 
-  // For (n>2)-player games, must keep it zero-sum.
-  std::vector<double> returns(num_players_, -1.0 / (num_players_ - 1));
+  std::vector<double> returns(10, -1.0);
+  int bestScores = scores[0];
+  for (int i = 0; i < numPlayers; i++) bestScores = std::min(bestScores, scores[i]);
+  for (int i = 0; i < numPlayers; i++) if (scores[i] <= bestScores) returns[i] = 1.0;
+  return returns;
+}
 
-  for (auto player = Player{0}; player < num_players_; ++player) {
-    if (scores_[player] >= win_score_) {
-      returns[player] = 1.0;
-      return returns;
+std::vector<Action> TokaidoState::LegalActions() const {
+  std::vector<Action> actions;
+  if (currMode == 0) {
+    for (int i = 0; i < 10; i++) {
+      if (playerHands[currPlayer][i] != -1) actions.push_back(playerHands[currPlayer][i]);
     }
+  } else {
+    actions.reserve(4);
+    for (int i = 0; i < 4; i++) actions.emplace_back(105 + i);
   }
 
-  // Nobody has won? (e.g. over horizon length.) Then everyone gets 0.
-  return std::vector<double>(num_players_, 0.0);
+  return actions;
+}
+
+std::string TokaidoState::ActionToString(Player player, Action move_id) const {
+  if (move_id > 104) return absl::StrCat("Take stack #", move_id);
+  return absl::StrCat("Play card #", move_id);
+}
+
+std::string BullsToString(const TokaidoState  &state) {
+  std::string rv = "Bulls:\n";
+  for (int i=0; i<state.numPlayers; i++) {
+    absl::StrAppend(&rv, "  Bulls #", i, ":");
+    int total = 0;
+    for (int k=1; k<=104; k++) if (state.bulls[i][k]) {
+      absl::StrAppend(&rv, " ", k);
+      total += CardScore(k);
+    }
+
+    absl::StrAppend(&rv, "\n  Total #", i, ":", total, "\n");
+  } 
+
+  return rv;
+}
+
+std::string BoardToString(const TokaidoState &state) {
+  std::string rv = "Board:\n";
+  for(int i=0; i<4; i++) {
+    absl::StrAppend(&rv, "  ");
+    for (int k=0; k<5; k++) {
+      if (state.cardStacks[i][k] != -1) absl::StrAppend(&rv, state.cardStacks[i][k], " ");
+    }
+    absl::StrAppend(&rv, "\n");
+  }
+
+  return rv;
+}
+
+std::string HandsToString(const TokaidoState &state) {
+  std::string rv = "Hands:\n";
+  for (int i=0; i<state.numPlayers; i++) {
+    absl::StrAppend(&rv, "  ", i, ":");
+    for (int k=0; k<10; k++) {
+      if (state.playerHands[i][k] != -1) absl::StrAppend(&rv, " ", state.playerHands[i][k]);
+    }
+    absl::StrAppend(&rv, "\n");
+  }
+
+  return rv;
+}
+
+std::string StackToString(const TokaidoState &state) {
+  std::string rv = "Stacks:";
+  int start = (state.currMode == 0 ? 0 : state.currStack); 
+  int end = (state.currMode==0? state.currPlayer: state.numPlayers);
+  for (int i=start; i<end; i++) {
+    absl::StrAppend(&rv, " (", state.cardsToBePlaced[i][0], ",", state.cardsToBePlaced[i][1], ")");
+  }
+  absl::StrAppend(&rv, "\n");
+  return rv;
+}
+
+std::string TokaidoState::ToString() const {
+  if (IsTerminal()) {
+    std::vector<double> returns = Returns();
+    std::string rv = "Winners are:";
+    for(int i=0; i<numPlayers; i++) if (returns[i] > 0) absl::StrAppend(&rv, i, " ");
+    absl::StrAppend(&rv, "\n");
+    absl::StrAppend(&rv, BullsToString(*this));
+    return rv;
+  } else if (currMode == 0 || currMode == 1) {
+    return absl::StrCat(BoardToString(*this), StackToString(*this), HandsToString(*this), BullsToString(*this));
+  } else return "Invalid State";
 }
 
 std::string TokaidoState::ObservationString(Player player) const {
@@ -116,150 +202,130 @@ std::string TokaidoState::ObservationString(Player player) const {
   return ToString();
 }
 
-std::vector<int> TokaidoGame::ObservationTensorShape() const {
-  int num_bins = (win_score_ / kBinSize) + 1;
-  return {1 + num_players_, num_bins};
-}
-
 void TokaidoState::ObservationTensor(Player player,
                                  absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
-  // One extra bin for when value is >= max.
-  // So for win_score_ 100, binSize = 1 -> 0, 1, ..., 99, >= 100.
-  int num_bins = (win_score_ / kBinSize) + 1;
-
-  // One-hot encoding: turn total (#bin) followed by p1, p2, ...
-  SPIEL_CHECK_EQ(values.size(), num_bins + num_players_ * num_bins);
+  // 0..9 - Bulls
+  // 10 - Hands
+  // 11 - Stack to be Placed
+  // 12..15 - Current Board
+  // 16 - Owner of the Stack to be Placed (10 * 10)
+  // 17 - Player Count (10)
+  TensorView<2> view(values, {18, 104}, true);
   std::fill(values.begin(), values.end(), 0.);
-  int pos = 0;
 
-  // One-hot encoding:
-  //  - turn total (#bins)
-  //  - player 0 (#bins)
-  //  - player 1 (#bins)
-  //      .
-  //      .
-  //      .
-
-  int bin = turn_total_ / kBinSize;
-  if (bin >= num_bins) {
-    // When the value is too large, use last bin.
-    values[pos + (num_bins - 1)] = 1;
-  } else {
-    values[pos + bin] = 1;
+  for(int i=0; i<numPlayers; i++) {
+    for(int k=1; k<=104; k++) if (bulls[i][k]) view[{i, k-1}] = 1.0;
   }
 
-  pos += num_bins;
-
-  // Find the right bin for each player.
-  for (auto p = Player{0}; p < num_players_; p++) {
-    bin = scores_[p] / kBinSize;
-    if (bin >= num_bins) {
-      // When the value is too large, use last bin.
-      values[pos + (num_bins - 1)] = 1;
-    } else {
-      values[pos + bin] = 1;
-    }
-
-    pos += num_bins;
+  for(int i=0; i<10; i++) if (playerHands[player][i] != -1) {
+    view[{10, playerHands[player][i]-1}] = 1.0;
   }
-}
 
-TokaidoState::TokaidoState(std::shared_ptr<const Game> game, int dice_outcomes,
-                   int horizon, int win_score)
-    : State(game),
-      dice_outcomes_(dice_outcomes),
-      horizon_(horizon),
-      win_score_(win_score) {
-  total_moves_ = 0;
-  cur_player_ = 0;
-  turn_player_ = 0;
-  scores_.resize(game->NumPlayers(), 0);
-  turn_total_ = 0;
-}
-
-int TokaidoState::CurrentPlayer() const {
-  return IsTerminal() ? kTerminalPlayerId : cur_player_;
-}
-
-void TokaidoState::DoApplyAction(Action move) {
-  // For decision node: 0 means roll, 1 means stop.
-  // For chance node: outcome of the dice (x-1).
-  if (cur_player_ >= 0 && move == kRoll) {
-    // Player roll -> chance node.
-    cur_player_ = kChancePlayerId;
-    total_moves_++;
-  } else if (cur_player_ >= 0 && move == kStop) {
-    // Player stops. Take turn total and pass to next player.
-    scores_[turn_player_] += turn_total_;
-    turn_total_ = 0;
-    turn_player_ = NextPlayerRoundRobin(turn_player_, num_players_);
-    cur_player_ = turn_player_;
-    total_moves_++;
-  } else if (IsChanceNode()) {
-    // Resolve chance node outcome. If 1, reset turn total and change players;
-    // else, add to total and keep going.
-    if (move == 0) {
-      // Reset turn total and loses turn!
-      turn_total_ = 0;
-      turn_player_ = NextPlayerRoundRobin(turn_player_, num_players_);
-      cur_player_ = turn_player_;
-    } else {
-      // Add to the turn total.
-      turn_total_ += (move + 1);
-      cur_player_ = turn_player_;
-    }
-  } else {
-    SpielFatalError(absl::StrCat("Move ", move, " is invalid."));
-  }
-}
-
-std::vector<Action> TokaidoState::LegalActions() const {
-  if (IsChanceNode()) {
-    return LegalChanceOutcomes();
-  } else if (IsTerminal()) {
-    return {};
-  } else {
-    if (scores_[cur_player_] + turn_total_ >= win_score_) {
-      return {kStop};
-    } else {
-      return {kRoll, kStop};
+  if (currMode == 1) {
+    for (int i=currStack; i<numPlayers; i++) {
+      view[{11, cardsToBePlaced[i][0]-1}] = 1.0;
+      view[{16, (i-currStack)*10 + cardsToBePlaced[i][1]}] = 1.0;
     }
   }
-}
 
-std::vector<std::pair<Action, double>> TokaidoState::ChanceOutcomes() const {
-  SPIEL_CHECK_TRUE(IsChanceNode());
-  std::vector<std::pair<Action, double>> outcomes;
-
-  // Chance outcomes are labelled 0+, corresponding to rolling 1+x.
-  outcomes.reserve(dice_outcomes_);
-  for (int i = 0; i < dice_outcomes_; i++) {
-    outcomes.push_back(std::make_pair(i, 1.0 / dice_outcomes_));
+  for (int i=0; i<4; i++) for (int k=0; k<5; k++) if (cardStacks[i][k] != -1) {
+    view[{12+i, cardStacks[i][k]-1}] = 1.0;
   }
 
-  return outcomes;
-}
-
-std::string TokaidoState::ToString() const {
-  return absl::StrCat("Scores: ", absl::StrJoin(scores_, " "),
-                      ", Turn total: ", turn_total_,
-                      "\nCurrent player: ", turn_player_,
-                      (cur_player_ == kChancePlayerId ? " (rolling)\n" : "\n"));
+  for (int i=0; i<numPlayers; i++) view[{17, i}] = -1.0;
+  view[{17, player}] = 1.0;
 }
 
 std::unique_ptr<State> TokaidoState::Clone() const {
   return std::unique_ptr<State>(new TokaidoState(*this));
 }
 
-TokaidoGame::TokaidoGame(const GameParameters& params)
-    : Game(kGameType, params),
-      dice_outcomes_(ParameterValue<int>("diceoutcomes")),
-      horizon_(ParameterValue<int>("horizon")),
-      num_players_(ParameterValue<int>("players")),
-      win_score_(ParameterValue<int>("winscore")) {}
+void SwapBull(TokaidoState &state, int row) {
+  int player = state.cardsToBePlaced[state.currStack][1];
+  int card = state.cardsToBePlaced[state.currStack][0];
+  for (int i=0; i<5; i++) if(state.cardStacks[row][i] != -1) {
+    state.bulls[player][state.cardStacks[row][i]] = true;
+  }
 
+  for (int i=0; i<5; i++) state.cardStacks[row][i] = -1;
+  state.cardStacks[row][0] = card;
+
+  std::sort(begin(state.cardStacks), end(state.cardStacks), compareCardStacks);
+  state.currStack++;
+}
+
+std::pair<int,int> PlacementIndex(TokaidoState &state, int card) {
+  int placementIdx = -1, placementCol = -1;
+  for (int i=0; i<4; i++) {
+    int currCol = 0;
+    for (int k=0; k<5; k++) if (state.cardStacks[i][k] != -1) currCol = k;
+    if (state.cardStacks[i][currCol] < card) {
+      if (placementIdx == -1 || state.cardStacks[placementIdx][placementCol] < state.cardStacks[i][currCol]) {
+        placementIdx = i; placementCol = currCol;
+      }
+    }
+  }
+
+  return std::make_pair(placementIdx, placementCol);
+}
+
+void PlaceOnStack(TokaidoState &state) {
+  while(state.currStack < state.numPlayers) {
+    state.currPlayer = state.cardsToBePlaced[state.currStack][1];
+    std::pair<int, int> idx = PlacementIndex(state, state.cardsToBePlaced[state.currStack][0]);
+    if (idx.first == -1) {
+      return;
+    }
+
+    if (idx.second >= 4) {
+      SwapBull(state, idx.first);
+    } else {
+      state.cardStacks[idx.first][idx.second+1] = state.cardsToBePlaced[state.currStack][0];
+      state.currStack++;
+    }
+  }
+
+  bool canStillPlay = false;
+  for (int i=0; i<10; i++) if(state.playerHands[0][i] != -1) canStillPlay = true;
+
+  if (canStillPlay) {
+    state.currMode = 0;
+    state.currPlayer = 0;
+  } else {
+    state.currMode = -1;
+    for(int i=0; i<state.numPlayers; i++) {
+      state.scores[i] = 0;
+      for (int k=1; k<=104; k++) if(state.bulls[i][k]) {
+        state.scores[i] += CardScore(k);
+      }
+    }
+  }
+}
+
+void TokaidoState::DoApplyAction(Action move) {
+  if (currMode == 0 && move >= 1 && move <= 104) {
+    cardsToBePlaced[currPlayer][0] = move;
+    cardsToBePlaced[currPlayer][1] = currPlayer;
+    for(int i=0; i<10; i++) if(playerHands[currPlayer][i] == move) playerHands[currPlayer][i] = -1;
+    currPlayer++;
+
+    if (currPlayer >= numPlayers) {
+      currMode = 1;
+      currStack = 0;
+      std::sort(begin(cardsToBePlaced), begin(cardsToBePlaced) + numPlayers);
+      PlaceOnStack(*this);
+    }
+  } else if (currMode == 1 && move >= 105 && move <= 108) {
+    SwapBull(*this, move-105);
+    PlaceOnStack(*this);
+  } else {
+    SpielFatalError(absl::StrCat("Move ", move, " is invalid."));
+  }
+}
+
+TokaidoGame::TokaidoGame(const GameParameters& params): Game(kGameType, params) {}
 }  // namespace pig
 }  // namespace open_spiel

@@ -52,6 +52,10 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 }  // namespace
 
+TicTacToeState::TicTacToeState(std::shared_ptr<const Game> game) : State(game) {
+  std::fill(begin(board_), end(board_), CellState::kEmpty);
+}
+
 CellState PlayerToState(Player player) {
   switch (player) {
     case 0:
@@ -118,10 +122,6 @@ bool TicTacToeState::HasLine(Player player) const {
 }
 
 bool TicTacToeState::IsFull() const { return num_moves_ == kNumCells; }
-
-TicTacToeState::TicTacToeState(std::shared_ptr<const Game> game) : State(game) {
-  std::fill(begin(board_), end(board_), CellState::kEmpty);
-}
 
 std::string TicTacToeState::ToString() const {
   std::string str;
