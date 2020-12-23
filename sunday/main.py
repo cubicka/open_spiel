@@ -184,7 +184,7 @@ def _play_game(logger, game_num, game, evaluators, prior_fns, temperature, tempe
   trajectory = Trajectory()
   actions = []
   state = game.new_initial_state()
-  logger.print("Initial obs", state.observation_tensor())
+#   logger.print("Initial obs", state.observation_tensor())
   if fprint:
     logger.print(" Starting game {} ".format(game_num).center(60, "-"))
     logger.print("Initial state:\n{}".format(state))
@@ -237,7 +237,7 @@ def _play_game(logger, game_num, game, evaluators, prior_fns, temperature, tempe
     if fprint:
         logger.print("Next state:\n{}".format(state))
 
-  logger.print("FInal obs", state.observation_tensor())
+#   logger.print("FInal obs", state.observation_tensor())
   trajectory.returns = state.returns()
   if fprint:
     logger.print("Game {}: Returns: {}; Actions: {}".format(
@@ -508,13 +508,13 @@ def simulate_once(config, logger):
         output_size=game.num_distinct_actions())
     model = _init_model_from_config(config)
     if config.cp_num and config.path:
-        model.load_checkpoint(config.path + '/cp/checkpoint-' + config.cp_num)
+        model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
     simulate_model(logger, config, game, model)
 
 game_name='tokaido'
 az_config = Config(
     game=game_name,
-    cp_num=None,
+    cp_num=-1,
     path='./sunday/' + game_name,
     learning_rate=0.001,
     weight_decay=1e-4,
@@ -545,8 +545,8 @@ az_config = Config(
 )
 
 def main(unused_argv):
-    alpha_zero(config=az_config)
-    # simulate_once(config=az_config)
+    # alpha_zero(config=az_config)
+    simulate_once(config=az_config)
 
 # simulate(config=az_config)
 if __name__ == "__main__":
