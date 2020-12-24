@@ -8,8 +8,6 @@ import time
 import numpy as np
 from search_node import puct_value, SearchNode
 
-from numba import jit
-
 random_state = np.random.RandomState()
 dirichlet_alpha = 1
 dirichlet_epsilon = 0.25
