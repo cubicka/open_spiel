@@ -18,7 +18,7 @@ def prior_with_noise(action_priors):
 
 def create_children_nodes(player, action_priors, with_noise):
   # For a new node, initialize its state, then choose a child as normal.
-  if with_noise: action_priors = prior_with_noise(action_priors)
+  # if with_noise: action_priors = prior_with_noise(action_priors)
 
   # Reduce bias from move generation order.
   random_state.shuffle(action_priors)
@@ -31,6 +31,8 @@ def _find_leaf(prior_fns, uct_c, root, state, with_noise=False):
   is_prev_a_simultaneous = False
   root_noise = with_noise
 
+  # print("\n===>>> Find leaf")
+  # print("current node", current_node)
   while not working_state.is_terminal() and (current_node.explore_count > 0 or is_prev_a_simultaneous):
     if not current_node.children:
       priors = prior_fns[working_state.current_player()](working_state)
@@ -46,7 +48,6 @@ def _find_leaf(prior_fns, uct_c, root, state, with_noise=False):
     if len(hopeful_children) == 0 and is_prev_a_simultaneous:
       hopeful_children = current_node.children
 
-    # print("current node", current_node)
     # print("visitpath")
     # for c in visit_path:
     #   print(c)
@@ -67,8 +68,10 @@ def _find_leaf(prior_fns, uct_c, root, state, with_noise=False):
     current_node = chosen_child
     visit_path.append(current_node)
 
+    # print("current node", current_node)
     # print("action chosen", chosen_child)
 
+  # print("<<<=== end leaf\n")
   return visit_path, working_state
 
 def mcts_search(evaluators, prior_fns, uct_c, with_noise, state):

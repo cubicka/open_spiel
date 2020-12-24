@@ -50,7 +50,9 @@ import numpy as np
 import mcts
 import az_eval as evaluator_lib
 import az_model as model_lib
+
 import tictactoe
+import nimmt
 
 import utils.logger as file_logger
 import utils.spawn as spawn
@@ -494,15 +496,20 @@ def simulate_model(logger, config, game, model, step=-1):
         #         solve=True,
         #         verbose=False))
         az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
-        evaluators = [az_evaluator.evaluate, mcts_evaluation]
-        prior_fns = [az_evaluator.prior, mcts_prior]
+        evaluators = [az_evaluator.evaluate]
+        prior_fns = [az_evaluator.prior]
+        for _ in range(1, game.num_players()):
+            evaluators.append(mcts_evaluation)
+            prior_fns.append(mcts_prior)
 
         _play_game(plogger, 0, game, evaluators, prior_fns, 1, 0, True)
 
 @watcher
 def simulate_once(config, logger):
     # game = pyspiel.load_game(config.game)
-    game = tictactoe.TicTacToeGame()
+    # game = tictactoe.TicTacToeGame()
+    game = nimmt.NimmtGame()
+
     config = config._replace(
         observation_shape=game.observation_tensor_shape(),
         output_size=game.num_distinct_actions())
@@ -511,10 +518,10 @@ def simulate_once(config, logger):
         model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
     simulate_model(logger, config, game, model)
 
-game_name='tokaido'
+game_name='nimmt'
 az_config = Config(
     game=game_name,
-    cp_num=-1,
+    cp_num=None,
     path='./sunday/' + game_name,
     learning_rate=0.001,
     weight_decay=1e-4,
@@ -537,7 +544,7 @@ az_config = Config(
 
     nn_model="mlp",
     nn_width=128,
-    nn_depth=10,
+    nn_depth=30,
     observation_shape=None,
     output_size=None,
 

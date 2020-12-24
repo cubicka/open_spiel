@@ -11,6 +11,13 @@
 import numpy as np
 import copy
 
+def empty_copy(obj):
+    class Empty(obj.__class__):
+        def __init__(self): pass
+    newcopy = Empty()
+    newcopy.__class__ = obj.__class__
+    return newcopy
+    
 _NUM_ROWS = 3
 _NUM_COLS = 3
 _NUM_CELLS = 9
@@ -76,7 +83,6 @@ class TicTacToeState(object):
     for action in range(_NUM_CELLS):
         if self._board[self._coord(action)] == ".":
             actions.append(action)
-    # print("legal actions", actions, self._board, self._is_terminal, self._cur_player)
     return actions
 
   def observation_tensor(self):
@@ -148,7 +154,14 @@ class TicTacToeState(object):
     return "\n".join("".join(row) for row in self._board)
 
   def clone(self):
-    return copy.deepcopy(self)
+    # return copy.deepcopy(self)
+    a_copy = empty_copy(self)
+    a_copy._cur_player = self._cur_player
+    a_copy._winner = self._winner
+    a_copy._is_terminal = self._is_terminal
+    a_copy._board = [row[:] for row in self._board]
+    # a_copy._board = copy.deepcopy(self._board)
+    return a_copy
 
 # new_initial_state
 # num_distinct_actions
