@@ -31,7 +31,6 @@
 import numpy as np
 
 from eval import Evaluator
-import pyspiel
 import utils.lru_cache as lru_cache
 
 
