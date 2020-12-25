@@ -61,7 +61,7 @@ az_config = Config(
 
     nn_model="mlp",
     nn_width=128,
-    nn_depth=20,
+    nn_depth=10,
     observation_shape=None,
     output_size=None,
 

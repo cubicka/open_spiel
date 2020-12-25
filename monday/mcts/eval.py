@@ -2,7 +2,7 @@ import numpy as np
 
 random_state = np.random.RandomState()
 
-def mcts_evaluation(state):
+def mcts_evaluation(state, player):
   """Returns evaluation on given state."""
   working_state = state.clone()
   while not working_state.is_terminal():
@@ -10,7 +10,7 @@ def mcts_evaluation(state):
     action = random_state.choice(working_state.legal_actions())
     working_state.apply_action(action)
 
-  return working_state.returns()[state.current_player()]
+  return working_state.returns()[player]
 
 def mcts_prior(state):
   legal_actions = state.legal_actions()

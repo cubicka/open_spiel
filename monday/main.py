@@ -63,7 +63,7 @@ from mcts.eval import mcts_evaluation, mcts_prior
 from trajectory import Trajectory, TrajectoryState
 from game import get_game
 from explorer import play_once
-from play_game import play
+from play_game import play_and_explore
 
 class Buffer(object):
   """A fixed size buffer that keeps the newest values."""
@@ -91,25 +91,6 @@ class Buffer(object):
   def sample(self, count):
     return random.sample(self.data, count)
 
-
-def _init_bot(config, game, evaluator_, evaluation):
-  """Initializes a bot."""
-  noise = None if evaluation else (config.policy_epsilon, config.policy_alpha)
-  return mcts.MCTSBot(
-      game,
-      config.uct_c,
-      config.max_simulations,
-      evaluator_,
-      solve=True,
-      dirichlet_noise=noise,
-      child_selection_fn=mcts.SearchNode.puct_value,
-      verbose=False)
-
-def print_obs_tensor(logger, tensor):
-  obs = []
-  for i in range(len(tensor)):
-    if tensor[i] != 0: obs.append(i)
-  logger.print("Tensor:\n", [[x//104, x%104 if tensor[x] > 0 else -1*(x%104)] for x in obs])
 
 def update_checkpoint(logger, queue, model, az_evaluator):
   """Read the queue for a checkpoint to load, or an exit signal."""
@@ -144,8 +125,7 @@ def actor(*, config, game, logger, queue):
         if not update_checkpoint(logger, queue, model, az_evaluator):
             return
 
-        # bots = [_init_bot(config, game, az_evaluator, False) for _ in range(game.num_players())]
-        queue.put(play(logger, game, evaluators, prior_fns, False))
+        queue.put(play_and_explore(game, evaluators, prior_fns))
 
 
 @watcher
@@ -186,7 +166,8 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         num_trajectories = 0
         num_states = 0
         print("Collection trajectories")
-        for trajectory in trajectory_generator():
+        for trajectories in trajectory_generator():
+          for trajectory in trajectories:
             num_trajectories += 1
             num_states += len(trajectory.states)
 
@@ -196,8 +177,9 @@ def learner(*, game, config, actors, broadcast_fn, logger):
                 for s in trajectory.states)
 
             print("Getting trajectories {}/{}".format(num_states, learn_rate))
-            if num_states >= learn_rate:
-                break
+
+          if num_states >= learn_rate:
+              break
 
         print("Returning trajectories", num_trajectories, num_states)
         return num_trajectories, num_states
@@ -220,7 +202,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         logger.print(losses)
         logger.print("Checkpoint saved:", save_path)
 
-        play_once(logger, config, game, model, step if step % config.checkpoint_freq == 0 else step % 5)
+        play_once(logger, config, game, model, step % 5)
         return save_path, losses
 
     last_time = time.time() - 60

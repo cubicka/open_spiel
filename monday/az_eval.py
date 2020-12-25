@@ -58,10 +58,10 @@ class AlphaZeroEvaluator(Evaluator):
   def clear_cache(self):
     self._cache.clear()
 
-  def _inference(self, state):
+  def _inference(self, state, player):
     # Make a singleton batch
-    obs = np.expand_dims(state.observation_tensor(), 0)
-    mask = np.expand_dims(state.legal_actions_mask(), 0)
+    obs = np.expand_dims(state.observation_tensor(player), 0)
+    mask = np.expand_dims(state.legal_actions_mask(player), 0)
 
     # ndarray isn't hashable
     cache_key = obs.tobytes() + mask.tobytes()
@@ -71,13 +71,13 @@ class AlphaZeroEvaluator(Evaluator):
 
     return value[0, 0], policy[0]  # Unpack batch
 
-  def evaluate(self, state):
+  def evaluate(self, state, player):
     """Returns a value for the given state."""
-    value, _ = self._inference(state)
+    value, _ = self._inference(state, player)
     # return np.array([value, -value])
     return value
 
   def prior(self, state):
     """Returns the probabilities for all actions."""
-    _, policy = self._inference(state)
+    _, policy = self._inference(state, state.current_player())
     return [(action, policy[action]) for action in state.legal_actions()]

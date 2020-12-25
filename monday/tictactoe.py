@@ -62,6 +62,9 @@ class TicTacToeState(object):
   # OpenSpiel (PySpiel) API functions are below. These need to be provided by
   # every game. Some not-often-used methods have been omitted.
 
+  def num_players(self):
+    return 2
+
   def current_player(self):
     return -1 if self._is_terminal else self._cur_player
 
@@ -85,8 +88,8 @@ class TicTacToeState(object):
             actions.append(action)
     return actions
 
-  def observation_tensor(self):
-    obs = [1, 0, 0, 1] if self._cur_player == 0 else [0, 1, 1, 0]
+  def observation_tensor(self, player):
+    obs = [1, 0, 0, 1] if player == 0 else [0, 1, 1, 0]
     # obs = [
     #   1 if self._cur_player == 0 else -1,
     #   1 if self._cur_player == 1 else -1,
@@ -96,7 +99,7 @@ class TicTacToeState(object):
     obs.extend([1 if self._board[self._coord(x)]=='o' else 0 for x in range(_NUM_CELLS)])
     return np.array(obs)
 
-  def legal_actions_mask(self, player=None):
+  def legal_actions_mask(self, player):
     """Get a list of legal actions.
 
     Args:
@@ -107,10 +110,10 @@ class TicTacToeState(object):
       Returns an empty list at terminal states, or if it is not the specified
       player's turn.
     """
-    if self.is_terminal():
-      return []
-    
     action_mask = [0] * _NUM_CELLS
+    if self._cur_player != player:
+      return action_mask
+
     for action in self.legal_actions():
         action_mask[action] = 1
     return action_mask

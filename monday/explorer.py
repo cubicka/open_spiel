@@ -2,7 +2,7 @@ from absl import app
 
 from az_model import config_to_model
 from game import get_game
-from play_game import play
+from play_game import play_and_explain
 import utils.spawn as spawn
 from utils.watcher import watcher
 from az_config import az_config
@@ -11,17 +11,24 @@ import az_eval as evaluator_lib
 import az_model as model_lib
 
 def play_once(logger, config, game, model, game_num):
-    trajectories = []
+    az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
+    evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
+    prior_fns = [az_evaluator.prior for player in range(game.num_players())]
+
     with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:
-        az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
+        play_and_explain(plogger, game, evaluators, prior_fns)
 
-        evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
-        prior_fns = [az_evaluator.prior for player in range(game.num_players())]
+    # trajectories = []
+    # with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:
+    #     az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
 
-        for _ in range(game.num_players()):
-            trajectories.append(play(plogger, game, evaluators, prior_fns, True))
+    #     evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
+    #     prior_fns = [az_evaluator.prior for player in range(game.num_players())]
 
-    return trajectories
+    #     # for _ in range(game.num_players()):
+    #     trajectories.append(play(plogger, game, evaluators, prior_fns, True))
+
+    # return trajectories
 
 @watcher
 def simulate_training(config, logger):
@@ -32,34 +39,37 @@ def simulate_training(config, logger):
         observation_shape=game.observation_tensor_shape(),
         output_size=game.num_distinct_actions())
     model = config_to_model(config)
+    if config.cp_num and config.path:
+        model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
+    
+    play_once(logger, config, game, model, -1)
 
-    az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
-    for x in range(11):
-        print("Game", x)
-        if x % 1 == 0:
-            az_evaluator.clear_cache()
-            state = game.new_initial_state()
-            logger.print(az_evaluator._inference(state))
+    # state = game.new_initial_state()
+    # for x in range(1):
+    #     print("Game", x)
 
-            state.apply_action(0)
-            logger.print(az_evaluator._inference(state))
+    #     data = play_once(logger, config, game, model, -1)
+    #     az_evaluator.clear_cache()
 
-            cstate = state.clone()
-            cstate.apply_action(7)
-            logger.print(az_evaluator._inference(cstate))
+    #     trainInputs = []
+    #     for d in data:
+    #         for s in d.states:
+    #             if all([x == 1 for x in s.legals_mask]):
+    #                 state = game.new_initial_state()
 
-            cstate = state.clone()
-            cstate.apply_action(4)
-            logger.print(az_evaluator._inference(cstate), "\n\n\n")
+    #             logger.print(az_evaluator._inference(state, state.current_player()))
+    #             logger.print("Data:")
+    #             logger.print(s.observation)
+    #             logger.print(s.legals_mask)
+    #             logger.print(s.policy)
+    #             logger.print(d.returns[s.current_player], "\n\n")
 
-        data = play_once(logger, config, game, model, x%7)
+    #             state.apply_action(s.action)
 
-        trainInputs = []
-        for d in data:
-            trainInputs.extend([model_lib.TrainInput(s.observation, s.legals_mask, s.policy, d.returns[s.current_player]) for s in d.states])
+    #         trainInputs.extend([model_lib.TrainInput(s.observation, s.legals_mask, s.policy, d.returns[s.current_player]) for s in d.states])
 
-        losses = model.update(trainInputs)
-        logger.print(losses)
+    #     losses = model.update(trainInputs)
+    #     logger.print(losses, "\n\n\n")
 
 def main(unused_argv):
     simulate_training(config=az_config)

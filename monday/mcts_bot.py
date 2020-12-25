@@ -24,7 +24,7 @@ def create_children_nodes(player, action_priors):
   random_state.shuffle(action_priors)
   return [SearchNode(action, player, prior) for action, prior in action_priors]
 
-def _find_leaf(prior_fns, uct_c, root, state):
+def _find_leaf(prior_fn, uct_c, root, state):
   visit_path = [root]
   working_state = state.clone()
   current_node = root
@@ -34,7 +34,7 @@ def _find_leaf(prior_fns, uct_c, root, state):
   # print("current node", current_node)
   while not working_state.is_terminal() and (current_node.explore_count > 0 or is_prev_a_simultaneous):
     if not current_node.children:
-      priors = prior_fns[working_state.current_player()](working_state)
+      priors = prior_fn(working_state)
       children = create_children_nodes(working_state.current_player(), priors)
 
       if is_prev_a_simultaneous:
@@ -71,13 +71,13 @@ def _find_leaf(prior_fns, uct_c, root, state):
   # print("<<<=== end leaf\n")
   return visit_path, working_state
 
-def mcts_search(evaluators, prior_fns, uct_c, state):
+def mcts_search(evaluator, prior_fn, uct_c, state):
   root_player = state.current_player()
   root = SearchNode(None, state.current_player(), 1)
   opt_nums = len(state.legal_actions())
   # print("MCTS Walk begin")
   for n in range(opt_nums * 50):
-    visit_path, working_state = _find_leaf(prior_fns, uct_c, root, state)
+    visit_path, working_state = _find_leaf(prior_fn, uct_c, root, state)
     # print("Visiting", n)
     # print(working_state)
     # for c in visit_path:
@@ -88,7 +88,10 @@ def mcts_search(evaluators, prior_fns, uct_c, state):
       visit_path[-1].outcome = returns
       solved = True
     else:
-      returns = [evaluator(working_state) for evaluator in evaluators]
+      # eval_value = evaluators[working_state.current_player()](working_state)
+      # returns = [-1*eval_value] * len(evaluators)
+      # returns[working_state.current_player()] = eval_value
+      returns = [evaluator(working_state, player) for player in range(state.num_players())]
       solved = False
 
     # print("Update Value", solved)
