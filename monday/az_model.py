@@ -239,9 +239,16 @@ class Model(object):
     # Main torso of the network
     if model_type == "mlp":
       torso = observations  # Ignore the input shape, treat it as a flat array.
+      torso = cascade(torso, [
+          tfkl.Dense(nn_width, name=f"torso_-1_dense"),
+          tfkl.Activation("relu"),
+      ])
       for i in range(nn_depth):
         torso = cascade(torso, [
             tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
+            tfkl.Activation("relu"),
+            tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
+            lambda x: tfkl.add([x, torso]),
             tfkl.Activation("relu"),
         ])
     elif model_type == "conv2d":

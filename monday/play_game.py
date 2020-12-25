@@ -84,14 +84,16 @@ def play_and_explain(logger, game, evaluators, prior_fns):
     logger.print("Initial state:\n{}".format(state))
     for idx, node in enumerate(nodes):
         logger.print("Root ({:.3f}):".format(evaluators[state.current_player()](state, state.current_player())))
-        logger.print("\n", node.to_str(state))
-        logger.print()
+        logger.print(node.to_str(state))
+        # logger.print()
         logger.print("Children:")
+        logger.print("\n" + node.children_str(state))
 
+        logger.print("Root ({:.3f}):".format(evaluators[state.current_player()](state, state.current_player())))
         for c in node.children:
             cstate = state.clone()
             cstate.apply_action(c.action)
-            logger.print("({:.3f})\n{}".format(evaluators[0](cstate, state.current_player()), c))
+            logger.print("{}: ({:.3f})".format(state.action_to_string(c.action), evaluators[0](cstate, state.current_player())))
 
         action = node.best_child().action
         action_str = state.action_to_string(state.current_player(), action)
