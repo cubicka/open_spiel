@@ -1,5 +1,5 @@
 from trajectory import Trajectory, TrajectoryState
-from mcts_bot import mcts_search
+from mcts_bot import mcts_search, policy_with_noise
 import numpy as np
 from search_node import SearchNode
 
@@ -22,12 +22,12 @@ def nodes_of_state(state, evaluators, priors, action_len):
         nodes.append(root)
 
         policy = np.zeros(action_len)
-        is_solved = root.outcome is not None
+        # is_solved = root.outcome is not None
         for c in root.children:
-            if not is_solved:
-                policy[c.action] = c.explore_count
-            else:
-                policy[c.action] = 1 if c.outcome is not None and c.outcome[state.current_player()] >= root.outcome[state.current_player()] else 0
+            # if not is_solved:
+                policy[c.action] = c.history.explore_count
+            # else:
+            #     policy[c.action] = 1 if c.outcome is not None and c.outcome[state.current_player()] >= root.outcome[state.current_player()] else 0
 
         policy /= policy.sum()
         policies.append(policy)
@@ -36,7 +36,7 @@ def nodes_of_state(state, evaluators, priors, action_len):
         trajectory.states.append(TrajectoryState(
             state.observation_tensor(state.current_player()), state.current_player(),
             state.legal_actions_mask(state.current_player()), best_action, policy,
-            root.total_reward / root.explore_count if root.outcome is None else root.outcome))
+            root.history.total_reward / root.history.explore_count if root.outcome is None else root.outcome))
 
         is_prev_state_simultaneous = state.is_simultaneous_node()
         state.apply_action(best_action)
@@ -49,7 +49,7 @@ def next_random_state(state, policies):
     policy_idx = 0
     is_prev_state_simultaneous = True
     while is_prev_state_simultaneous:
-        action = np.random.choice(len(policies[policy_idx]), p=policies[policy_idx])
+        action = np.random.choice(len(policies[policy_idx]), p=policy_with_noise(policies[policy_idx]))
         is_prev_state_simultaneous = state.is_simultaneous_node()
         state.apply_action(action)
         policy_idx += 1
@@ -89,11 +89,11 @@ def play_and_explain(logger, game, evaluators, prior_fns):
         logger.print("Children:")
         logger.print("\n" + node.children_str(state))
 
-        logger.print("Root ({:.3f}):".format(evaluators[state.current_player()](state, state.current_player())))
-        for c in node.children:
-            cstate = state.clone()
-            cstate.apply_action(c.action)
-            logger.print("{}: ({:.3f})".format(state.action_to_string(c.action), evaluators[0](cstate, state.current_player())))
+        # logger.print("Root ({:.3f}):".format(evaluators[state.current_player()](state, state.current_player())))
+        # for c in node.children:
+        #     cstate = state.clone()
+        #     cstate.apply_action(c.action)
+        #     logger.print("{}: ({:.3f})".format(state.action_to_string(c.action), evaluators[0](cstate, state.current_player())))
 
         action = node.best_child().action
         action_str = state.action_to_string(state.current_player(), action)
@@ -109,69 +109,3 @@ def play_and_explain(logger, game, evaluators, prior_fns):
     logger.print("Returns: {}; Actions: {}".format(
         " ".join(map(str, trajectory.returns)), " ".join(actions)))
     return
-
-def play_old(logger, game, evaluators, prior_fns, fprint):
-    """Play one game, return the trajectory."""
-    trajectory = Trajectory()
-    actions = []
-    state = game.new_initial_state()
-
-    if fprint:
-        logger.print("Starting game".center(60, "-"))
-        logger.print("Initial state:\n{}".format(state))
-
-    is_prev_state_simultaneous = False
-    while not state.is_terminal():
-        if is_prev_state_simultaneous:
-            root = chosen_child
-        else:
-            root = mcts_search(evaluators[state.current_player()], prior_fns[state.current_player()], 2, state)
-
-        policy = np.zeros(game.num_distinct_actions())
-        root_solved = root.outcome is not None
-        for c in root.children:
-            if not root_solved:
-                policy[c.action] = c.explore_count
-            else:
-                policy[c.action] = 1 if c.outcome is not None and c.outcome[state.current_player()] >= root.outcome[state.current_player()] else 0
-
-        policy /= policy.sum()        
-        best_action = root.best_child().action
-        action = np.random.choice(len(policy), p=policy)
-        chosen_child = filter(lambda c: c.action == action, root.children)
-
-        trajectory.states.append(TrajectoryState(
-            state.observation_tensor(state.current_player()), state.current_player(),
-            state.legal_actions_mask(state.current_player()), best_action, policy,
-            root.total_reward / root.explore_count if root.outcome is None else root.outcome))
-
-        action_str = state.action_to_string(state.current_player(), action)
-        actions.append(action_str)
-        if fprint:
-            best_action_str = state.action_to_string(state.current_player(), best_action)
-            
-            logger.print("Root ({:.3f}):".format(evaluators[state.current_player()](state, state.current_player())))
-            logger.print("\n", root.to_str(state))
-            logger.print("Children:")
-            # logger.print("\n" + root.children_str(state))
-            for c in root.children:
-                cstate = state.clone()
-                cstate.apply_action(c.action)
-                logger.print("\n ({:.3f}) {}".format(evaluators[0](cstate, state.current_player()), c))
-
-            logger.print("======= Best {}: {} ({})".format(
-                state.current_player(), best_action_str, policy[best_action]))
-            logger.print("======= Sample {}: {} ({})".format(
-                state.current_player(), action_str, policy[action]))
-            logger.print("\n\n\n")
-
-        is_prev_state_simultaneous = state.is_simultaneous_node()
-        state.apply_action(action)
-        if fprint:
-            logger.print("Next state:\n{}".format(state))
-
-    trajectory.returns = state.returns()
-    if fprint:
-        logger.print("Returns: {}; Actions: {}".format(
-            " ".join(map(str, trajectory.returns)), " ".join(actions)))
-    return trajectory

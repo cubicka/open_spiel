@@ -3,19 +3,32 @@ import math
 def puct_value(node, parent_explore_count, uct_c):
     """Returns the PUCT value of child."""
     if node.outcome is not None:
-      return node.outcome[node.player]
-
-    return ((node.explore_count and node.total_reward / node.explore_count) +
+      return (node.outcome[node.player] +
             uct_c * node.prior * math.sqrt(parent_explore_count) /
-            (node.explore_count + 1))
+            (node.history.explore_count + 1))
+
+    return (node.history.value() +
+            uct_c * node.prior * math.sqrt(parent_explore_count) /
+            (node.history.explore_count + 1))
+
+class NodeHistory(object):
+  def __init__(self):
+    self.explore_count = 0
+    self.total_reward = 0.0
+
+  def visit(self, reward):
+    self.explore_count += 1
+    self.total_reward += reward
+
+  def value(self):
+    return self.explore_count and self.total_reward / self.explore_count
 
 class SearchNode(object):
   def __init__(self, action, player, prior):
     self.action = action
     self.player = player
     self.prior = prior
-    self.explore_count = 0
-    self.total_reward = 0.0
+    self.history = NodeHistory()
     self.outcome = None
     self.children = []
 
@@ -30,17 +43,19 @@ class SearchNode(object):
     if self.explore_count == 0:
       return float("inf")
 
-    return self.total_reward / self.explore_count + uct_c * math.sqrt(
-        math.log(parent_explore_count) / self.explore_count)
+    return self.history.value() + uct_c * math.sqrt(
+        math.log(parent_explore_count) / self.history.explore_count)
 
   def puct_value(self, parent_explore_count, uct_c):
     """Returns the PUCT value of child."""
     if self.outcome is not None:
-      return self.outcome[self.player]
-
-    return ((self.explore_count and self.total_reward / self.explore_count) +
+      return (self.outcome[self.player] +
             uct_c * self.prior * math.sqrt(parent_explore_count) /
-            (self.explore_count + 1))
+            (self.history.explore_count + 1))
+
+    return (self.history.value() +
+            uct_c * self.prior * math.sqrt(parent_explore_count) /
+            (self.history.explore_count + 1))
 
   def sort_key(self):
     """Returns the best action from this node, either proven or most visited.
@@ -56,7 +71,7 @@ class SearchNode(object):
     - Longest win, if multiple are proven (unlikely due to early stopping).
     """
     return (0 if self.outcome is None else self.outcome[self.player],
-            self.explore_count, self.total_reward)
+            self.history.explore_count, self.history.total_reward)
 
   def best_child(self):
     """Returns the best child in order of the sort key."""
@@ -88,8 +103,7 @@ class SearchNode(object):
         if state and self.action is not None else str(self.action))
     return ("{:>6}: player: {}, prior: {:5.3f}, value: {:6.3f}, sims: {:5d}, "
             "outcome: {}, {:3d} children").format(
-                action, self.player, self.prior, self.explore_count and
-                self.total_reward / self.explore_count, self.explore_count,
+                action, self.player, self.prior, self.history.value(), self.history.explore_count,
                 ("{:4.1f}".format(self.outcome[self.player])
                  if self.outcome else "none"), len(self.children))
 

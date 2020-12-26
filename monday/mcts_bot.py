@@ -16,6 +16,10 @@ def prior_with_noise(action_priors):
   noise = random_state.dirichlet([dirichlet_alpha] * len(action_priors))
   return [(a, (1 - dirichlet_epsilon) * p + dirichlet_epsilon * n) for (a, p), n in zip(action_priors, noise)]
 
+def policy_with_noise(policy):
+  noise = random_state.dirichlet([dirichlet_alpha] * len(policy))
+  return [(1 - dirichlet_epsilon) * p + dirichlet_epsilon * n for p, n in zip(policy, noise)]
+
 def create_children_nodes(player, action_priors):
   # For a new node, initialize its state, then choose a child as normal.
   # if with_noise: action_priors = prior_with_noise(action_priors)
@@ -32,7 +36,7 @@ def _find_leaf(prior_fn, uct_c, root, state):
 
   # print("\n===>>> Find leaf")
   # print("current node", current_node)
-  while not working_state.is_terminal() and (current_node.explore_count > 0 or is_prev_a_simultaneous):
+  while not working_state.is_terminal() and (current_node.history.explore_count > 0 or is_prev_a_simultaneous):
     if not current_node.children:
       priors = prior_fn(working_state)
       children = create_children_nodes(working_state.current_player(), priors)
@@ -43,9 +47,9 @@ def _find_leaf(prior_fn, uct_c, root, state):
       else:
         current_node.children = children
 
-    hopeful_children = [c for c in current_node.children if c.outcome is None]
-    if len(hopeful_children) == 0 and is_prev_a_simultaneous:
-      hopeful_children = current_node.children
+    # hopeful_children = [c for c in current_node.children if c.outcome is None]
+    # if len(hopeful_children) == 0 and is_prev_a_simultaneous:
+    #   hopeful_children = current_node.children
 
     # print("visitpath")
     # for c in visit_path:
@@ -54,10 +58,11 @@ def _find_leaf(prior_fn, uct_c, root, state):
     # for c in hopeful_children:
     #   print(c)
 
-    if len(hopeful_children) > 0:
-      chosen_child = max(hopeful_children, key=lambda c: puct_value(c, current_node.explore_count, uct_c))
-    else:
-      break
+    chosen_child = max(current_node.children, key=lambda c: puct_value(c, current_node.history.explore_count, uct_c))
+    # if len(hopeful_children) > 0:
+    #   chosen_child = max(hopeful_children, key=lambda c: puct_value(c, current_node.history.explore_count, uct_c))
+    # else:
+    #   break
 
     is_prev_a_simultaneous = working_state.is_simultaneous_node()
 
@@ -88,10 +93,10 @@ def mcts_search(evaluator, prior_fn, uct_c, state):
       visit_path[-1].outcome = returns
       solved = True
     else:
-      # eval_value = evaluators[working_state.current_player()](working_state)
-      # returns = [-1*eval_value] * len(evaluators)
-      # returns[working_state.current_player()] = eval_value
-      returns = [evaluator(working_state, player) for player in range(state.num_players())]
+      eval_value = evaluator(working_state, state.current_player())
+      returns = [-1*eval_value] * state.num_players()
+      returns[working_state.current_player()] = eval_value
+      # returns = [evaluator(working_state, player) for player in range(state.num_players())]
       solved = False
 
     # print("Update Value", solved)
@@ -99,8 +104,7 @@ def mcts_search(evaluator, prior_fn, uct_c, state):
     for node in reversed(visit_path):
       # node.total_reward += returns[0 if node.player ==
       #                              pyspiel.PlayerId.CHANCE else node.player]
-      node.total_reward += returns[node.player]
-      node.explore_count += 1
+      node.history.visit(returns[node.player])
 
       if solved and node.children:
         player = node.children[0].player
@@ -121,10 +125,10 @@ def mcts_search(evaluator, prior_fn, uct_c, state):
         else:
           solved = False
 
-      # print(node)
+    #   # print(node)
 
-    if root.outcome is not None:
-      break
+    # if root.outcome is not None:
+    #   break
   #   print("-------")
   # print("======= Done Update")
   # print("\n\n\n")
