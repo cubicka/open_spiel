@@ -9,14 +9,24 @@ from az_config import az_config
 import utils.logger as file_logger
 import az_eval as evaluator_lib
 import az_model as model_lib
+from mcts.eval import mcts_evaluation, mcts_prior
 
 def play_once(logger, config, game, model, game_num):
     az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
     evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
     prior_fns = [az_evaluator.prior for player in range(game.num_players())]
 
+    # evaluators_random = [az_evaluator.evaluate for player in range(game.num_players())]
+    # prior_fns_random = [az_evaluator.prior for player in range(game.num_players())]
+
+    evaluators_mcts = [mcts_evaluation for player in range(game.num_players())]
+    evaluators_mcts[0] = az_evaluator.evaluate
+    prior_fns_mcts = [mcts_prior for player in range(game.num_players())]
+    prior_fns_mcts[0] = az_evaluator.prior
+
     with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:
         play_and_explain(plogger, game, evaluators, prior_fns)
+        play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts)
 
     # trajectories = []
     # with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:

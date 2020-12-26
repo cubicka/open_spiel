@@ -113,4 +113,6 @@ def play_and_explain(logger, game, evaluators, prior_fns):
 
     logger.print("Returns: {}; Actions: {}".format(
         " ".join(map(str, trajectory.returns)), " ".join(actions)))
+    logger.print("".center(60, '='))
+    logger.print("\n\n")
     return
