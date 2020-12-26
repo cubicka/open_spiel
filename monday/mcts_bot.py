@@ -20,7 +20,7 @@ def policy_with_noise(policy):
   noise = random_state.dirichlet([dirichlet_alpha] * len(policy))
   return [(1 - dirichlet_epsilon) * p + dirichlet_epsilon * n for p, n in zip(policy, noise)]
 
-def create_children_nodes(player, action_priors):
+def create_children_nodes(player, action_priors, history_cache):
   # For a new node, initialize its state, then choose a child as normal.
   # if with_noise: action_priors = prior_with_noise(action_priors)
 
@@ -28,7 +28,7 @@ def create_children_nodes(player, action_priors):
   random_state.shuffle(action_priors)
   return [SearchNode(action, player, prior) for action, prior in action_priors]
 
-def _find_leaf(prior_fn, uct_c, root, state):
+def _find_leaf(prior_fn, uct_c, root, state, history_cache):
   visit_path = [root]
   working_state = state.clone()
   current_node = root
@@ -39,13 +39,7 @@ def _find_leaf(prior_fn, uct_c, root, state):
   while not working_state.is_terminal() and (current_node.history.explore_count > 0 or is_prev_a_simultaneous):
     if not current_node.children:
       priors = prior_fn(working_state)
-      children = create_children_nodes(working_state.current_player(), priors)
-
-      if is_prev_a_simultaneous:
-        for c in visit_path[-2].children:
-          c.children = children
-      else:
-        current_node.children = children
+      current_node.children = create_children_nodes(working_state.current_player(), priors, history_cache)
 
     # hopeful_children = [c for c in current_node.children if c.outcome is None]
     # if len(hopeful_children) == 0 and is_prev_a_simultaneous:
@@ -80,9 +74,10 @@ def mcts_search(evaluator, prior_fn, uct_c, state):
   root_player = state.current_player()
   root = SearchNode(None, state.current_player(), 1)
   opt_nums = len(state.legal_actions())
+  history_cache = {}
   # print("MCTS Walk begin")
   for n in range(opt_nums * 50):
-    visit_path, working_state = _find_leaf(prior_fn, uct_c, root, state)
+    visit_path, working_state = _find_leaf(prior_fn, uct_c, root, state, history_cache)
     # print("Visiting", n)
     # print(working_state)
     # for c in visit_path:

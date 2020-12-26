@@ -3,7 +3,7 @@ from mcts_bot import mcts_search, policy_with_noise
 import numpy as np
 from search_node import SearchNode
 
-def nodes_of_state(state, evaluators, priors, action_len):
+def nodes_of_state(state, evaluators, priors, action_len, with_random=True):
     """Play one game from state, return the trajectory."""
 
     nodes = []
@@ -32,7 +32,11 @@ def nodes_of_state(state, evaluators, priors, action_len):
         policy /= policy.sum()
         policies.append(policy)
 
-        best_action = root.best_child().action
+        if not with_random:
+            best_action = root.best_child().action
+        else:
+            best_action = np.random.choice(len(policy), p=policy)
+
         trajectory.states.append(TrajectoryState(
             state.observation_tensor(state.current_player()), state.current_player(),
             state.legal_actions_mask(state.current_player()), best_action, policy,
@@ -60,26 +64,27 @@ def play_and_explore(game, evaluators, prior_fns):
     state = game.new_initial_state()
     n_actions = game.num_distinct_actions()
 
-    nodes, policies, trajectory = nodes_of_state(state.clone(), evaluators, prior_fns, n_actions)
-    trajectories = [trajectory]
+    nodes, policies, trajectory = nodes_of_state(state, evaluators, prior_fns, n_actions)
+    return trajectory
+    # trajectories = [trajectory]
 
-    node_idx = 0
-    while node_idx < len(nodes) and nodes[node_idx].outcome is None:
-        state_copy = state.clone()
-        n_steps = next_random_state(state_copy, policies[node_idx:])
-        _, _, additional_trajectory = nodes_of_state(state_copy, evaluators, prior_fns, n_actions)
+    # node_idx = 0
+    # while node_idx < len(nodes) and nodes[node_idx].outcome is None:
+    #     state_copy = state.clone()
+    #     n_steps = next_random_state(state_copy, policies[node_idx:])
+    #     _, _, additional_trajectory = nodes_of_state(state_copy, evaluators, prior_fns, n_actions)
 
-        trajectories.append(additional_trajectory)
-        for k in range(n_steps):
-            state.apply_action(nodes[node_idx+k].best_child().action)
-        node_idx += n_steps
-    return trajectories
+    #     trajectories.append(additional_trajectory)
+    #     for k in range(n_steps):
+    #         state.apply_action(nodes[node_idx+k].best_child().action)
+    #     node_idx += n_steps
+    # return trajectories
 
 def play_and_explain(logger, game, evaluators, prior_fns):
     """Play one game, return the trajectory."""
     state = game.new_initial_state()
     actions = []
-    nodes, policies, trajectory = nodes_of_state(state.clone(), evaluators, prior_fns, game.num_distinct_actions())
+    nodes, policies, trajectory = nodes_of_state(state.clone(), evaluators, prior_fns, game.num_distinct_actions(), False)
 
     logger.print("Initial state:\n{}".format(state))
     for idx, node in enumerate(nodes):
