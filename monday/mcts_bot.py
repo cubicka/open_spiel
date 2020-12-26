@@ -77,6 +77,7 @@ def mcts_search(evaluator, prior_fn, uct_c, state):
   history_cache = {}
   # print("MCTS Walk begin")
   for n in range(opt_nums * 50):
+  # for n in range(1000):
     visit_path, working_state = _find_leaf(prior_fn, uct_c, root, state, history_cache)
     # print("Visiting", n)
     # print(working_state)

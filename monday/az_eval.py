@@ -51,12 +51,14 @@ class AlphaZeroEvaluator(Evaluator):
 
     self._model = model
     self._cache = lru_cache.LRUCache(cache_size)
+    self._policy_cache = lru_cache.LRUCache(cache_size)
 
   def cache_info(self):
     return self._cache.info()
 
   def clear_cache(self):
     self._cache.clear()
+    self._policy_cache.clear()
 
   def _inference(self, state, player):
     # Make a singleton batch
@@ -81,3 +83,21 @@ class AlphaZeroEvaluator(Evaluator):
     """Returns the probabilities for all actions."""
     _, policy = self._inference(state, state.current_player())
     return [(action, policy[action]) for action in state.legal_actions()]
+
+  def reuse_policy(self, player, state):
+    # Make a singleton batch
+    obs = np.expand_dims(state.observation_tensor(player), 0)
+    mask = np.expand_dims(state.legal_actions_mask(player), 0)
+
+    # ndarray isn't hashable
+    cache_key = obs.tobytes() + mask.tobytes()
+    return self._policy_cache.get(cache_key)
+
+  def save_policy(self, player, state, policy, total_reward, visit_count, outcome):
+    # Make a singleton batch
+    obs = np.expand_dims(state.observation_tensor(player), 0)
+    mask = np.expand_dims(state.legal_actions_mask(player), 0)
+
+    # ndarray isn't hashable
+    cache_key = obs.tobytes() + mask.tobytes()
+    return self._policy_cache.set(cache_key, (policy, total_reward, visit_count, outcome))

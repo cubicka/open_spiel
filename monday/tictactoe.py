@@ -68,6 +68,31 @@ class TicTacToeState(object):
   def current_player(self):
     return -1 if self._is_terminal else self._cur_player
 
+  def is_simultaneous_node(self):
+    return False
+
+  def is_terminal(self):
+    return self._is_terminal
+
+  def returns(self):
+    if self.is_terminal():
+      if self._winner == 0:
+        return [1.0, -1.0]
+      elif self._winner == 1:
+        return [-1.0, 1.0]
+    return [0.0, 0.0]
+
+  def observation_tensor(self, player):
+    obs = [1, 0, 0, 1] if player == 0 else [0, 1, 1, 0]
+    # obs = [
+    #   1 if self._cur_player == 0 else -1,
+    #   1 if self._cur_player == 1 else -1,
+    # ]
+
+    obs.extend([1 if self._board[self._coord(x)]=='x' else 0 for x in range(_NUM_CELLS)])
+    obs.extend([1 if self._board[self._coord(x)]=='o' else 0 for x in range(_NUM_CELLS)])
+    return np.array(obs)
+
   def legal_actions(self):
     """Returns a list of legal actions, sorted in ascending order.
 
@@ -87,17 +112,6 @@ class TicTacToeState(object):
         if self._board[self._coord(action)] == ".":
             actions.append(action)
     return actions
-
-  def observation_tensor(self, player):
-    obs = [1, 0, 0, 1] if player == 0 else [0, 1, 1, 0]
-    # obs = [
-    #   1 if self._cur_player == 0 else -1,
-    #   1 if self._cur_player == 1 else -1,
-    # ]
-
-    obs.extend([1 if self._board[self._coord(x)]=='x' else 0 for x in range(_NUM_CELLS)])
-    obs.extend([1 if self._board[self._coord(x)]=='o' else 0 for x in range(_NUM_CELLS)])
-    return np.array(obs)
 
   def legal_actions_mask(self, player):
     """Get a list of legal actions.
@@ -139,20 +153,6 @@ class TicTacToeState(object):
     action = arg0 if arg1 is None else arg1
     row, col = self._coord(action)
     return "{}({},{})".format("x" if player == 0 else "o", row, col)
-
-  def is_terminal(self):
-    return self._is_terminal
-
-  def returns(self):
-    if self.is_terminal():
-      if self._winner == 0:
-        return [1.0, -1.0]
-      elif self._winner == 1:
-        return [-1.0, 1.0]
-    return [0.0, 0.0]
-
-  def is_simultaneous_node(self):
-    return False
 
   def __str__(self):
     return "\n".join("".join(row) for row in self._board)

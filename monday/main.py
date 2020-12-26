@@ -125,7 +125,7 @@ def actor(*, config, game, logger, queue):
         if not update_checkpoint(logger, queue, model, az_evaluator):
             return
 
-        queue.put(play_and_explore(game, evaluators, prior_fns))
+        queue.put(play_and_explore(game, evaluators, prior_fns, (az_evaluator.reuse_policy, az_evaluator.save_policy)))
 
 
 @watcher

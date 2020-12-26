@@ -3,7 +3,7 @@ from mcts_bot import mcts_search, policy_with_noise
 import numpy as np
 from search_node import SearchNode
 
-def nodes_of_state(state, evaluators, priors, action_len, with_random=True):
+def nodes_of_state(state, evaluators, priors, action_len, with_random=True, cache=None):
     """Play one game from state, return the trajectory."""
 
     nodes = []
@@ -12,24 +12,38 @@ def nodes_of_state(state, evaluators, priors, action_len, with_random=True):
 
     is_prev_state_simultaneous = False
     while not state.is_terminal():
-        if is_prev_state_simultaneous:
-            root = chosen_child
-        else:
-            root = mcts_search(evaluators[state.current_player()], priors[state.current_player()], 2, state)
+        policy = None
+        root = None
+        is_cached = False
 
-        root.children.sort(key=SearchNode.sort_key)
-        root.children.reverse()
+        if cache is not None:
+            cached_value = cache[0](state.current_player(), state)
+            if cached_value is not None:
+                is_cached = True
+                root = SearchNode(None, state.current_player(), 1)
+                c_policy, total_reward, visit_count, outcome = cached_value
+                root.history.total_reward = total_reward
+                root.history.explore_count = visit_count
+                root.outcome = outcome
+                policy = c_policy
+
+        if root is None:
+            if is_prev_state_simultaneous:
+                root = chosen_child
+            else:
+                root = mcts_search(evaluators[state.current_player()], priors[state.current_player()], 2, state)
+            root.children.sort(key=SearchNode.sort_key)
+            root.children.reverse()
         nodes.append(root)
 
-        policy = np.zeros(action_len)
-        # is_solved = root.outcome is not None
-        for c in root.children:
-            # if not is_solved:
+        if policy is None:
+            policy = np.zeros(action_len)
+            for c in root.children:
                 policy[c.action] = c.history.explore_count
-            # else:
-            #     policy[c.action] = 1 if c.outcome is not None and c.outcome[state.current_player()] >= root.outcome[state.current_player()] else 0
 
-        policy /= policy.sum()
+            policy /= policy.sum()
+            if cache is not None:
+                cache[1](state.current_player(), state, policy, root.history.total_reward, root.history.explore_count, root.outcome)
         policies.append(policy)
 
         if not with_random:
@@ -60,11 +74,11 @@ def next_random_state(state, policies):
 
     return policy_idx
 
-def play_and_explore(game, evaluators, prior_fns):
+def play_and_explore(game, evaluators, prior_fns, cache):
     state = game.new_initial_state()
     n_actions = game.num_distinct_actions()
 
-    nodes, policies, trajectory = nodes_of_state(state, evaluators, prior_fns, n_actions)
+    nodes, policies, trajectory = nodes_of_state(state, evaluators, prior_fns, n_actions, True, cache)
     return trajectory
     # trajectories = [trajectory]
 
