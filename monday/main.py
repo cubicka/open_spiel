@@ -119,8 +119,8 @@ def actor(*, config, game, logger, queue):
     logger.print("Initializing bots")
 
     az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
-    evaluators = [az_evaluator.evaluate, az_evaluator.evaluate]
-    prior_fns = [az_evaluator.prior, az_evaluator.prior]
+    evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
+    prior_fns = [az_evaluator.prior for player in range(game.num_players())]
     for game_num in itertools.count():
         if not update_checkpoint(logger, queue, model, az_evaluator):
             return
@@ -166,17 +166,17 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         num_trajectories = 0
         num_states = 0
         print("Collection trajectories")
-        for trajectory in trajectory_generator():
-          # for trajectory in trajectories:
-          num_trajectories += 1
-          num_states += len(trajectory.states)
+        for trajectories in trajectory_generator():
+          for trajectory in trajectories:
+            num_trajectories += 1
+            num_states += len(trajectory.states)
 
-          replay_buffer.extend(
-              model_lib.TrainInput(
-                  s.observation, s.legals_mask, s.policy, trajectory.returns[s.current_player])
-              for s in trajectory.states)
+            replay_buffer.extend(
+                model_lib.TrainInput(
+                    s.observation, s.legals_mask, s.policy, trajectory.returns[s.current_player])
+                for s in trajectory.states)
 
-          print("Getting trajectories {}/{}".format(num_states, learn_rate))
+            print("Getting trajectories {}/{}".format(num_states, learn_rate))
 
           if num_states >= learn_rate:
               break

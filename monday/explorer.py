@@ -2,7 +2,7 @@ from absl import app
 
 from az_model import config_to_model
 from game import get_game
-from play_game import play_and_explain
+from play_game import play_and_explain, play_and_explore
 import utils.spawn as spawn
 from utils.watcher import watcher
 from az_config import az_config
@@ -25,6 +25,10 @@ def play_once(logger, config, game, model, game_num):
     prior_fns_mcts[0] = az_evaluator.prior
 
     with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:
+        # play_and_explore(game, evaluators, prior_fns, None)
+        # play_and_explore(game, evaluators_mcts, prior_fns_mcts, None)
+
+        play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts, True)
         play_and_explain(plogger, game, evaluators, prior_fns)
         play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts)
 

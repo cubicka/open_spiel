@@ -86,7 +86,7 @@ class AlphaZeroEvaluator(Evaluator):
 
   def reuse_policy(self, player, state):
     # Make a singleton batch
-    obs = np.expand_dims(state.observation_tensor(player), 0)
+    obs = np.expand_dims(state.full_observation_tensor(player), 0)
     mask = np.expand_dims(state.legal_actions_mask(player), 0)
 
     # ndarray isn't hashable
@@ -95,7 +95,7 @@ class AlphaZeroEvaluator(Evaluator):
 
   def save_policy(self, player, state, policy, total_reward, visit_count, outcome):
     # Make a singleton batch
-    obs = np.expand_dims(state.observation_tensor(player), 0)
+    obs = np.expand_dims(state.full_observation_tensor(player), 0)
     mask = np.expand_dims(state.legal_actions_mask(player), 0)
 
     # ndarray isn't hashable

@@ -6,7 +6,7 @@ import math
 import time
 
 import numpy as np
-from search_node import puct_value, SearchNode
+from search_node import puct_value, NodeHistory, SearchNode
 
 random_state = np.random.RandomState()
 dirichlet_alpha = 1
@@ -20,15 +20,16 @@ def policy_with_noise(policy):
   noise = random_state.dirichlet([dirichlet_alpha] * len(policy))
   return [(1 - dirichlet_epsilon) * p + dirichlet_epsilon * n for p, n in zip(policy, noise)]
 
-def create_children_nodes(player, action_priors, history_cache):
+def create_children_nodes(player, action_priors, cached_histories):
   # For a new node, initialize its state, then choose a child as normal.
   # if with_noise: action_priors = prior_with_noise(action_priors)
 
   # Reduce bias from move generation order.
-  random_state.shuffle(action_priors)
-  return [SearchNode(action, player, prior) for action, prior in action_priors]
+  children = [SearchNode(action, player, prior, history) for (action, prior), history in zip(action_priors, cached_histories)]
+  random_state.shuffle(children)
+  return children
 
-def _find_leaf(prior_fn, uct_c, root, state, history_cache):
+def _find_leaf(prior_fns, uct_c, root, state, history_cache):
   visit_path = [root]
   working_state = state.clone()
   current_node = root
@@ -38,8 +39,15 @@ def _find_leaf(prior_fn, uct_c, root, state, history_cache):
   # print("current node", current_node)
   while not working_state.is_terminal() and (current_node.history.explore_count > 0 or is_prev_a_simultaneous):
     if not current_node.children:
-      priors = prior_fn(working_state)
-      current_node.children = create_children_nodes(working_state.current_player(), priors, history_cache)
+      state_key = np.expand_dims(working_state.observation_tensor(working_state.current_player()), 0).tobytes()
+      priors = prior_fns[working_state.current_player()](working_state)
+      if state_key in history_cache:
+        cached_histories = history_cache[state_key]
+      else:
+        cached_histories = [NodeHistory() for action, prior in priors]
+        history_cache[state_key] = cached_histories
+
+      current_node.children = create_children_nodes(working_state.current_player(), priors, cached_histories)
 
     # hopeful_children = [c for c in current_node.children if c.outcome is None]
     # if len(hopeful_children) == 0 and is_prev_a_simultaneous:
@@ -60,25 +68,24 @@ def _find_leaf(prior_fn, uct_c, root, state, history_cache):
 
     is_prev_a_simultaneous = working_state.is_simultaneous_node()
 
+    # print("action chosen", chosen_child)
     working_state.apply_action(chosen_child.action)
     current_node = chosen_child
     visit_path.append(current_node)
 
     # print("current node", current_node)
-    # print("action chosen", chosen_child)
 
   # print("<<<=== end leaf\n")
   return visit_path, working_state
 
-def mcts_search(evaluator, prior_fn, uct_c, state):
+def mcts_search(evaluators, prior_fns, uct_c, state, history_cache):
   root_player = state.current_player()
   root = SearchNode(None, state.current_player(), 1)
   opt_nums = len(state.legal_actions())
-  history_cache = {}
   # print("MCTS Walk begin")
   for n in range(opt_nums * 50):
   # for n in range(1000):
-    visit_path, working_state = _find_leaf(prior_fn, uct_c, root, state, history_cache)
+    visit_path, working_state = _find_leaf(prior_fns, uct_c, root, state, history_cache)
     # print("Visiting", n)
     # print(working_state)
     # for c in visit_path:
@@ -89,10 +96,10 @@ def mcts_search(evaluator, prior_fn, uct_c, state):
       visit_path[-1].outcome = returns
       solved = True
     else:
-      eval_value = evaluator(working_state, state.current_player())
-      returns = [-1*eval_value] * state.num_players()
-      returns[working_state.current_player()] = eval_value
-      # returns = [evaluator(working_state, player) for player in range(state.num_players())]
+      # eval_value = evaluator(working_state, state.current_player())
+      # returns = [-1*eval_value] * state.num_players()
+      # returns[working_state.current_player()] = eval_value
+      returns = [evaluator(working_state, state.current_player()) for evaluator in evaluators]
       solved = False
 
     # print("Update Value", solved)

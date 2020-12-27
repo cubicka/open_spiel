@@ -24,11 +24,14 @@ class NodeHistory(object):
     return self.explore_count and self.total_reward / self.explore_count
 
 class SearchNode(object):
-  def __init__(self, action, player, prior):
+  def __init__(self, action, player, prior, history=None):
     self.action = action
     self.player = player
     self.prior = prior
-    self.history = NodeHistory()
+    if history is None:
+      self.history = NodeHistory()
+    else:
+      self.history = history
     self.outcome = None
     self.children = []
 
