@@ -96,10 +96,12 @@ def mcts_search(evaluators, prior_fns, uct_c, state, history_cache):
       visit_path[-1].outcome = returns
       solved = True
     else:
-      # eval_value = evaluator(working_state, state.current_player())
+      # eval_value = evaluators[working_state.current_player()](working_state, working_state.current_player())
       # returns = [-1*eval_value] * state.num_players()
       # returns[working_state.current_player()] = eval_value
-      returns = [evaluator(working_state, state.current_player()) for evaluator in evaluators]
+      # returns = [evaluator(working_state, state.current_player()) for evaluator in evaluators]
+      # returns = [evaluators[player](working_state, player) if player == working_state.current_player() else None for player in range(state.num_players())]
+      returns = evaluators[working_state.current_player()](working_state, working_state.current_player())
       solved = False
 
     # print("Update Value", solved)
@@ -107,6 +109,7 @@ def mcts_search(evaluators, prior_fns, uct_c, state, history_cache):
     for node in reversed(visit_path):
       # node.total_reward += returns[0 if node.player ==
       #                              pyspiel.PlayerId.CHANCE else node.player]
+      # if returns[node.player] is not None:
       node.history.visit(returns[node.player])
 
       if solved and node.children:

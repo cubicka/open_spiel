@@ -10,7 +10,7 @@ def mcts_evaluation(state, player):
     action = random_state.choice(working_state.legal_actions())
     working_state.apply_action(action)
 
-  return working_state.returns()[player]
+  return working_state.returns()
 
 def mcts_prior(state):
   legal_actions = state.legal_actions()

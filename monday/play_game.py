@@ -3,7 +3,7 @@ from mcts_bot import create_children_nodes, mcts_search, policy_with_noise
 import numpy as np
 from search_node import SearchNode
 
-def nodes_of_state(state, evaluators, priors, action_len, with_random=True, cache=None):
+def nodes_of_state(state, evaluators, priors, action_len, with_random=True):
     """Play one game from state, return the trajectory."""
 
     nodes = []
@@ -51,9 +51,11 @@ def nodes_of_state(state, evaluators, priors, action_len, with_random=True, cach
             for c in root.children:
                 policy[c.action] = c.history.explore_count
 
+            # print(root.children)
+            # print(policy)
             policy /= policy.sum()
-            if cache is not None:
-                cache[1](state.current_player(), state, policy, root.history.total_reward, root.history.explore_count, root.outcome)
+            # if cache is not None:
+            #     cache[1](state.current_player(), state, policy, root.history.total_reward, root.history.explore_count, root.outcome)
         policies.append(policy)
 
         try:
@@ -63,15 +65,15 @@ def nodes_of_state(state, evaluators, priors, action_len, with_random=True, cach
                 best_action = np.random.choice(len(policy), p=policy)
         except: 
                 print("=======", is_prev_state_simultaneous, is_cached, len(root.children))
-                print("chosen", chosen_child)
+                # print("chosen", chosen_child)
                 print(root)
                 for c in root.children:
                     print("==child", c, c.history.explore_count)
                 print(policy)
                 print("terminal", state._is_terminal)
-                print("hand len", len(state._hands[0]))
-                print("hand len", len(state._hands[1]))
-                print("hand len", len(state._hands[2]))
+                # print("hand len", len(state._hands[0]))
+                # print("hand len", len(state._hands[1]))
+                # print("hand len", len(state._hands[2]))
                 raise Exception("Lanjut")
 
         actions.append(best_action)
@@ -108,7 +110,7 @@ def play_and_explore(game, evaluators, prior_fns, cache):
     state = game.new_initial_state()
     n_actions = game.num_distinct_actions()
 
-    nodes, policies, actions, trajectory = nodes_of_state(state.clone(), evaluators, prior_fns, n_actions, True, cache)
+    nodes, policies, actions, trajectory = nodes_of_state(state.clone(), evaluators, prior_fns, n_actions)
     # return trajectory
     trajectories = [trajectory]
 
@@ -116,27 +118,28 @@ def play_and_explore(game, evaluators, prior_fns, cache):
     while node_idx < len(nodes) and nodes[node_idx].outcome is None:
         state_copy = state.clone()
         n_steps = next_random_state(state_copy, policies[node_idx:])
-        _, _, _, additional_trajectory = nodes_of_state(state_copy, evaluators, prior_fns, n_actions, True, cache)
 
+        _, _, _, additional_trajectory = nodes_of_state(state_copy, evaluators, prior_fns, n_actions)
         trajectories.append(additional_trajectory)
+
         for k in range(n_steps):
             # state.apply_action(nodes[node_idx+k].best_child().action)
             state.apply_action(actions[node_idx + k])
         node_idx += n_steps
     return trajectories
 
-def play_and_explain(logger, game, evaluators, prior_fns, is_shallow=False):
+def play_and_explain(logger, game, evaluators, prior_fns, is_shallow=False, is_stupid_enemy=False):
     """Play one game, return the trajectory."""
     state = game.new_initial_state()
     actions = []
     if is_shallow:
-        nodes, policies, acts, trajectory = play_shallow_az(state.clone(), evaluators, prior_fns, game.num_distinct_actions())
+        nodes, policies, acts, trajectory = play_shallow_az(state.clone(), evaluators, prior_fns, game.num_distinct_actions(), is_stupid_enemy)
     else:
         nodes, policies, acts, trajectory = nodes_of_state(state.clone(), evaluators, prior_fns, game.num_distinct_actions(), False)
 
     logger.print("Initial state:\n{}".format(state))
     for idx, node in enumerate(nodes):
-        logger.print("Root ({:.3f}):".format(evaluators[state.current_player()](state, state.current_player())))
+        logger.print("Root ({}):".format(evaluators[state.current_player()](state, state.current_player())))
         logger.print(node.to_str(state))
         # logger.print()
         logger.print("Children:")
@@ -166,7 +169,7 @@ def play_and_explain(logger, game, evaluators, prior_fns, is_shallow=False):
     logger.print("\n\n")
     return
 
-def play_shallow_az(state, evaluators, priors, action_len):
+def play_shallow_az(state, evaluators, priors, action_len, is_stupid_enemy):
     nodes = []
     policies = []
     actions = []
@@ -203,6 +206,8 @@ def play_shallow_az(state, evaluators, priors, action_len):
             az_prior = priors[0](state)
             best_action_prior = max(az_prior, key=lambda probs: probs[1])
             best_action = best_action_prior[0]
+        elif is_stupid_enemy:
+            best_action = np.random.choice(root.children).action
         else:
             best_action = root.best_child().action
 

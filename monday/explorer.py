@@ -28,6 +28,7 @@ def play_once(logger, config, game, model, game_num):
         # play_and_explore(game, evaluators, prior_fns, None)
         # play_and_explore(game, evaluators_mcts, prior_fns_mcts, None)
 
+        play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts, True, True)
         play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts, True)
         play_and_explain(plogger, game, evaluators, prior_fns)
         play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts)
@@ -51,39 +52,18 @@ def simulate_training(config, logger):
     # Extend config with game data
     config = config._replace(
         observation_shape=game.observation_tensor_shape(),
-        output_size=game.num_distinct_actions())
+        output_size=game.num_distinct_actions(),
+        value_size=game.num_players(),
+        cp_num=-1)
     model = config_to_model(config)
     if config.cp_num and config.path:
         model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
     
+    az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
+
     play_once(logger, config, game, model, -1)
-
     # state = game.new_initial_state()
-    # for x in range(1):
-    #     print("Game", x)
-
-    #     data = play_once(logger, config, game, model, -1)
-    #     az_evaluator.clear_cache()
-
-    #     trainInputs = []
-    #     for d in data:
-    #         for s in d.states:
-    #             if all([x == 1 for x in s.legals_mask]):
-    #                 state = game.new_initial_state()
-
-    #             logger.print(az_evaluator._inference(state, state.current_player()))
-    #             logger.print("Data:")
-    #             logger.print(s.observation)
-    #             logger.print(s.legals_mask)
-    #             logger.print(s.policy)
-    #             logger.print(d.returns[s.current_player], "\n\n")
-
-    #             state.apply_action(s.action)
-
-    #         trainInputs.extend([model_lib.TrainInput(s.observation, s.legals_mask, s.policy, d.returns[s.current_player]) for s in d.states])
-
-    #     losses = model.update(trainInputs)
-    #     logger.print(losses, "\n\n\n")
+    # print(az_evaluator._inference(state, state.current_player()))
 
 def main(unused_argv):
     simulate_training(config=az_config)

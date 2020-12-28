@@ -29,13 +29,14 @@ class Config(collections.namedtuple(
         "nn_depth",
         "observation_shape",
         "output_size",
+        "value_size",
 
         "quiet",
     ])):
   """A config for the model/experiment."""
   pass
 
-game_name='nimmt'
+game_name='tictactoe'
 az_config = Config(
     game=game_name,
     cp_num=None,
@@ -60,10 +61,11 @@ az_config = Config(
     eval_levels=7,
 
     nn_model="mlp",
-    nn_width=128,
+    nn_width=512,
     nn_depth=10,
     observation_shape=None,
     output_size=None,
+    value_size=None,
 
     quiet=True,
 )

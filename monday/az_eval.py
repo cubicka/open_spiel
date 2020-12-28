@@ -71,7 +71,7 @@ class AlphaZeroEvaluator(Evaluator):
     value, policy = self._cache.make(
         cache_key, lambda: self._model.inference(obs, mask))
 
-    return value[0, 0], policy[0]  # Unpack batch
+    return value[0], policy[0]  # Unpack batch
 
   def evaluate(self, state, player):
     """Returns a value for the given state."""

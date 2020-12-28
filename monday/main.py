@@ -125,7 +125,7 @@ def actor(*, config, game, logger, queue):
         if not update_checkpoint(logger, queue, model, az_evaluator):
             return
 
-        queue.put(play_and_explore(game, evaluators, prior_fns, (az_evaluator.reuse_policy, az_evaluator.save_policy)))
+        queue.put(play_and_explore(game, evaluators, prior_fns))
 
 
 @watcher
@@ -173,7 +173,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
 
             replay_buffer.extend(
                 model_lib.TrainInput(
-                    s.observation, s.legals_mask, s.policy, trajectory.returns[s.current_player])
+                    s.observation, s.legals_mask, s.policy, trajectory.returns)
                 for s in trajectory.states)
 
             print("Getting trajectories {}/{}".format(num_states, learn_rate))
@@ -232,7 +232,8 @@ def alpha_zero(config):
     game = get_game(config.game)
     config = config._replace(
         observation_shape=game.observation_tensor_shape(),
-        output_size=game.num_distinct_actions())
+        output_size=game.num_distinct_actions(),
+        value_size=game.num_players())
 
     print("Starting game", config.game)
 

@@ -66,7 +66,24 @@ class NimmtState(object):
             values = [bull_value(cards) for cards in self._bulls]
             best_value = min(values)
             worst_value = max(values)
-            return list(map(lambda x: bull_to_return(values[x], best_value, worst_value), range(self._num_players)))
+            if best_value == worst_value:
+                return [0.0] * self._num_players
+
+            scores = [0.0] * self._num_players
+            n_best, n_worst = 0, 0
+            for x in range(self._num_players):
+                if values[x] == best_value:
+                    nbest += 1
+                elif values[x] == worst_value:
+                    n_worst += 1
+            for x in range(self._num_players):
+                if values[x] == best_value:
+                    scores[x] = 1.0 / nbest
+                elif values[x] == worst_value:
+                    scores[x] = -1.0 / n_worst
+            return scores
+
+            # return list(map(lambda x: bull_to_return(values[x], best_value, worst_value), range(self._num_players)))
             # return [1.0 if values[x] == best_value else -1.0 for x in range(self._num_players)]
         return [0.0] * self._num_players
 

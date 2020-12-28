@@ -91,7 +91,8 @@ class TrainInput(collections.namedtuple(
         np.array(observation, dtype=np.float32),
         np.array(legals_mask, dtype=np.bool),
         np.array(policy),
-        np.expand_dims(value, 1))
+        # np.expand_dims(value, 1))
+        np.array(value))
 
 
 class Losses(collections.namedtuple("Losses", "policy value l2")):
@@ -174,7 +175,7 @@ class Model(object):
     self._train = self._session.graph.get_operation_by_name("train")
 
   @classmethod
-  def build_model(cls, model_type, input_shape, output_size, nn_width, nn_depth,
+  def build_model(cls, model_type, input_shape, output_size, value_size, nn_width, nn_depth,
                   weight_decay, learning_rate, path):
     """Build a model with the specified params."""
     if model_type not in cls.valid_model_types:
@@ -185,7 +186,7 @@ class Model(object):
     # https://stackoverflow.com/a/40788998
     g = tf.Graph()  # Allow multiple independent models and graphs.
     with g.as_default():
-      cls._define_graph(model_type, input_shape, output_size, nn_width,
+      cls._define_graph(model_type, input_shape, output_size, value_size, nn_width,
                         nn_depth, weight_decay, learning_rate)
       init = tf.variables_initializer(tf.global_variables(),
                                       name="init_all_vars_op")
@@ -224,7 +225,7 @@ class Model(object):
       self._session.close()
 
   @staticmethod
-  def _define_graph(model_type, input_shape, output_size,
+  def _define_graph(model_type, input_shape, output_size, value_size,
                     nn_width, nn_depth, weight_decay, learning_rate):
     """Define the model graph."""
     # Inference inputs
@@ -299,7 +300,11 @@ class Model(object):
 
     # The value head
     if model_type == "mlp":
-      value_head = torso  # Nothing specific before the shared value head.
+      # value_head = torso  # Nothing specific before the shared value head.
+      value_head = cascade(torso, [
+          tfkl.Dense(nn_width, name="value_dense"),
+          tfkl.Activation("relu"),
+      ])
     else:
       value_head = cascade(torso, [
           conv_2d(filters=1, kernel_size=1, name="value_conv"),
@@ -310,13 +315,13 @@ class Model(object):
     value_out = cascade(value_head, [
         tfkl.Dense(nn_width, name="value_dense"),
         tfkl.Activation("relu"),
-        tfkl.Dense(1, name="value"),
+        tfkl.Dense(value_size, name="value"),
         tfkl.Activation("tanh"),
     ])
     # Need the identity to name the single value output from the dense layer.
     value_out = tf.identity(value_out, name="value_out")
     value_targets = tf.placeholder(
-        shape=[None, 1], dtype=tf.float32, name="value_targets")
+        shape=[None, value_size], dtype=tf.float32, name="value_targets")
     value_loss = tf.identity(tf.losses.mean_squared_error(
         value_out, value_targets), name="value_loss")
 
@@ -382,6 +387,7 @@ def config_to_model(config):
       config.nn_model,
       config.observation_shape,
       config.output_size,
+      config.value_size,
       config.nn_width,
       config.nn_depth,
       config.weight_decay,

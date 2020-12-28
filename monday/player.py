@@ -14,7 +14,7 @@ def play_game(game):
         lines = file.readlines()
         players = lines[0].split()
         nplayer = len(players)
-        logger.print(nplayer, players)
+
         state._num_players = nplayer
         state._bulls = [[] for _ in range(state._num_players)]
         state._hands = [set() for _ in range(nplayer)]
@@ -33,7 +33,6 @@ def play_game(game):
                 s = line.split()[1:]
                 for idx in range(0, len(s), 2):
                     player_actions[s[idx]] = int(s[idx+1])
-                logger.print(player_actions)
                 for x in range(nplayer):
                     state.apply_action(player_actions[players[x]])
             elif line.startswith('s'):
@@ -46,6 +45,7 @@ def play_game(game):
             best_action_prior = max(priors, key=lambda probs: probs[1])
             best_action = best_action_prior[0]
             logger.print(best_action, az_evaluator.evaluate(state, 0))
+            logger.print(priors)
         else:
             logger.print(state.returns())
         logger.print('state', state)
