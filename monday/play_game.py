@@ -106,7 +106,7 @@ def next_random_state(state, policies):
 
     return policy_idx
 
-def play_and_explore(game, evaluators, prior_fns, cache):
+def play_and_explore(game, evaluators, prior_fns):
     state = game.new_initial_state()
     n_actions = game.num_distinct_actions()
 
@@ -128,9 +128,9 @@ def play_and_explore(game, evaluators, prior_fns, cache):
         node_idx += n_steps
     return trajectories
 
-def play_and_explain(logger, game, evaluators, prior_fns, is_shallow=False, is_stupid_enemy=False):
+def play_and_explain(logger, game, input_state, evaluators, prior_fns, is_shallow=False, is_stupid_enemy=False):
     """Play one game, return the trajectory."""
-    state = game.new_initial_state()
+    state = input_state.clone()
     actions = []
     if is_shallow:
         nodes, policies, acts, trajectory = play_shallow_az(state.clone(), evaluators, prior_fns, game.num_distinct_actions(), is_stupid_enemy)

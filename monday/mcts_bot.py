@@ -25,9 +25,9 @@ def create_children_nodes(player, action_priors, cached_histories):
   # if with_noise: action_priors = prior_with_noise(action_priors)
 
   # Reduce bias from move generation order.
-  children = [SearchNode(action, player, prior, history) for (action, prior), history in zip(action_priors, cached_histories)]
-  random_state.shuffle(children)
-  return children
+  return [SearchNode(action, player, prior, history) for (action, prior), history in zip(action_priors, cached_histories)]
+  # random_state.shuffle(children)
+  # return children
 
 def _find_leaf(prior_fns, uct_c, root, state, history_cache):
   visit_path = [root]

@@ -24,14 +24,16 @@ def play_once(logger, config, game, model, game_num):
     prior_fns_mcts = [mcts_prior for player in range(game.num_players())]
     prior_fns_mcts[0] = az_evaluator.prior
 
+    state = game.new_initial_state()
+
     with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:
         # play_and_explore(game, evaluators, prior_fns, None)
         # play_and_explore(game, evaluators_mcts, prior_fns_mcts, None)
 
-        play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts, True, True)
-        play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts, True)
-        play_and_explain(plogger, game, evaluators, prior_fns)
-        play_and_explain(plogger, game, evaluators_mcts, prior_fns_mcts)
+        play_and_explain(plogger, game, state, evaluators, prior_fns, True, True)
+        play_and_explain(plogger, game, state, evaluators_mcts, prior_fns_mcts, True)
+        play_and_explain(plogger, game, state, evaluators, prior_fns)
+        # play_and_explain(plogger, game, state, evaluators_mcts, prior_fns_mcts)
 
     # trajectories = []
     # with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:

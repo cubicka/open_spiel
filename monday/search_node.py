@@ -3,9 +3,7 @@ import math
 def puct_value(node, parent_explore_count, uct_c):
     """Returns the PUCT value of child."""
     if node.outcome is not None:
-      return (node.outcome[node.player] +
-            uct_c * node.prior * math.sqrt(parent_explore_count) /
-            (node.history.explore_count + 1))
+      return node.outcome[node.player]
 
     return (node.history.value() +
             uct_c * node.prior * math.sqrt(parent_explore_count) /
@@ -52,9 +50,7 @@ class SearchNode(object):
   def puct_value(self, parent_explore_count, uct_c):
     """Returns the PUCT value of child."""
     if self.outcome is not None:
-      return (self.outcome[self.player] +
-            uct_c * self.prior * math.sqrt(parent_explore_count) /
-            (self.history.explore_count + 1))
+      return self.outcome[self.player]
 
     return (self.history.value() +
             uct_c * self.prior * math.sqrt(parent_explore_count) /
