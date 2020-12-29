@@ -67,25 +67,25 @@ class NimmtState(object):
             best_value = min(values)
             worst_value = max(values)
             if best_value == worst_value:
-                return [0.0] * self._num_players
+                return [0.0] * 10
 
-            scores = [0.0] * self._num_players
+            scores = [0.0] * 10
             n_best, n_worst = 0, 0
             for x in range(self._num_players):
                 if values[x] == best_value:
-                    nbest += 1
+                    n_best += 1
                 elif values[x] == worst_value:
                     n_worst += 1
             for x in range(self._num_players):
                 if values[x] == best_value:
-                    scores[x] = 1.0 / nbest
+                    scores[x] = 1.0 / n_best
                 elif values[x] == worst_value:
                     scores[x] = -1.0 / n_worst
             return scores
 
             # return list(map(lambda x: bull_to_return(values[x], best_value, worst_value), range(self._num_players)))
             # return [1.0 if values[x] == best_value else -1.0 for x in range(self._num_players)]
-        return [0.0] * self._num_players
+        return [0.0] * 10
 
     def observation_tensor(self, player):
         # obs = [-1 if x < self._num_players else 0 for x in range(10)]

@@ -36,7 +36,7 @@ class Config(collections.namedtuple(
   """A config for the model/experiment."""
   pass
 
-game_name='tictactoe'
+game_name='nimmt'
 az_config = Config(
     game=game_name,
     cp_num=None,

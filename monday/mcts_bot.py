@@ -79,7 +79,7 @@ def _find_leaf(prior_fns, uct_c, root, state, history_cache):
   return visit_path, working_state
 
 def mcts_search(evaluators, prior_fns, uct_c, state, history_cache):
-  root_player = state.current_player()
+  # root_player = state.current_player()
   root = SearchNode(None, state.current_player(), 1)
   opt_nums = len(state.legal_actions())
   # print("MCTS Walk begin")
