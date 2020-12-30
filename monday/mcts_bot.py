@@ -6,137 +6,93 @@ import math
 import time
 
 import numpy as np
-from search_node import puct_value, NodeHistory, SearchNode
+from search_node import NodeHistory, SearchNode
 
-random_state = np.random.RandomState()
+random_state = np.random.default_rng()
 dirichlet_alpha = 1
 dirichlet_epsilon = 0.25
+uct_c = 2
 
 def prior_with_noise(action_priors):
   noise = random_state.dirichlet([dirichlet_alpha] * len(action_priors))
   return [(a, (1 - dirichlet_epsilon) * p + dirichlet_epsilon * n) for (a, p), n in zip(action_priors, noise)]
 
-def policy_with_noise(policy):
-  noise = random_state.dirichlet([dirichlet_alpha] * len(policy))
-  return [(1 - dirichlet_epsilon) * p + dirichlet_epsilon * n for p, n in zip(policy, noise)]
+# def policy_with_noise(policy):
+#   noise = random_state.dirichlet([dirichlet_alpha] * len(policy))
+#   return [(1 - dirichlet_epsilon) * p + dirichlet_epsilon * n for p, n in zip(policy, noise)]
 
-def create_children_nodes(player, action_priors, cached_histories):
-  # For a new node, initialize its state, then choose a child as normal.
-  # if with_noise: action_priors = prior_with_noise(action_priors)
+def expand_node(az_evaluator, state, node, history_cache, is_root):
+    player = state.current_player()
+    obs = state.observation_tensor()
+    mask = state.legal_actions_mask()
+    actions = state.legal_actions()
+    _, policy = az_evaluator._inference(obs, mask)
+    priors = [(action, policy[action]) for action in actions]
+    if is_root:
+        priors = prior_with_noise(priors)
 
-  # Reduce bias from move generation order.
-  return [SearchNode(action, player, prior, history) for (action, prior), history in zip(action_priors, cached_histories)]
-  # random_state.shuffle(children)
-  # return children
-
-def _find_leaf(prior_fns, uct_c, root, state, history_cache):
-  visit_path = [root]
-  working_state = state.clone()
-  current_node = root
-  is_prev_a_simultaneous = False
-
-  # print("\n===>>> Find leaf")
-  # print("current node", current_node)
-  while not working_state.is_terminal() and (current_node.history.explore_count > 0 or is_prev_a_simultaneous):
-    if not current_node.children:
-      state_key = np.expand_dims(working_state.observation_tensor(working_state.current_player()), 0).tobytes()
-      priors = prior_fns[working_state.current_player()](working_state)
-      if state_key in history_cache:
+    state_key = tuple(obs)
+    try:
         cached_histories = history_cache[state_key]
-      else:
-        cached_histories = [NodeHistory() for action, prior in priors]
+    except:
+        cached_histories = [NodeHistory() for _ in priors]
         history_cache[state_key] = cached_histories
 
-      current_node.children = create_children_nodes(working_state.current_player(), priors, cached_histories)
+    node.children = [SearchNode(action, player, prior, history) for (action, prior), history in zip(priors, cached_histories)]
+    random_state.shuffle(node.children)
 
-    # hopeful_children = [c for c in current_node.children if c.outcome is None]
-    # if len(hopeful_children) == 0 and is_prev_a_simultaneous:
-    #   hopeful_children = current_node.children
+def _find_leaf(az_evaluator, state, root, history_cache, is_first_expansion):
+    visit_path = [root]
+    working_state = state.clone()
+    current_node = root
+    is_prev_a_simultaneous = False
+    is_root = True
 
-    # print("visitpath")
-    # for c in visit_path:
-    #   print(c)
-    # print("hopeful_children", is_prev_a_simultaneous, working_state)
-    # for c in hopeful_children:
-    #   print(c)
+    while not working_state.is_terminal() and (current_node.history.explore_count > 0 or is_prev_a_simultaneous):
+        if len(current_node.children) == 0 or (is_first_expansion and is_root):
+            expand_node(az_evaluator, working_state, current_node, history_cache, is_root)
 
-    chosen_child = max(current_node.children, key=lambda c: puct_value(c, current_node.history.explore_count, uct_c))
-    # if len(hopeful_children) > 0:
-    #   chosen_child = max(hopeful_children, key=lambda c: puct_value(c, current_node.history.explore_count, uct_c))
-    # else:
-    #   break
+        # print("children", current_node.children)
+        chosen_child = max(current_node.children, key=lambda c: SearchNode.puct_value(c, current_node.history.explore_count, uct_c))
 
-    is_prev_a_simultaneous = working_state.is_simultaneous_node()
+        is_prev_a_simultaneous = working_state.is_simultaneous_node()
+        is_root = is_root and is_prev_a_simultaneous
 
-    # print("action chosen", chosen_child)
-    working_state.apply_action(chosen_child.action)
-    current_node = chosen_child
-    visit_path.append(current_node)
+        working_state.apply_action(chosen_child.action)
+        current_node = chosen_child
+        visit_path.append(current_node)
 
-    # print("current node", current_node)
+    return visit_path, working_state
 
-  # print("<<<=== end leaf\n")
-  return visit_path, working_state
+def mcts_search(az_evaluator, state, root, history_cache):
+    for n in range(501):
+        visit_path, working_state = _find_leaf(az_evaluator, state, root, history_cache, n == 0)
 
-def mcts_search(evaluators, prior_fns, uct_c, state, history_cache):
-  # root_player = state.current_player()
-  root = SearchNode(None, state.current_player(), 1)
-  opt_nums = len(state.legal_actions())
-  # print("MCTS Walk begin")
-  for n in range(opt_nums * 50):
-  # for n in range(1000):
-    visit_path, working_state = _find_leaf(prior_fns, uct_c, root, state, history_cache)
-    # print("Visiting", n)
-    # print(working_state)
-    # for c in visit_path:
-    #   print(c)
-
-    if working_state.is_terminal():
-      returns = working_state.returns()
-      visit_path[-1].outcome = returns
-      solved = True
-    else:
-      # eval_value = evaluators[working_state.current_player()](working_state, working_state.current_player())
-      # returns = [-1*eval_value] * state.num_players()
-      # returns[working_state.current_player()] = eval_value
-      # returns = [evaluator(working_state, state.current_player()) for evaluator in evaluators]
-      # returns = [evaluators[player](working_state, player) if player == working_state.current_player() else None for player in range(state.num_players())]
-      returns = evaluators[working_state.current_player()](working_state, working_state.current_player())
-      solved = False
-
-    # print("Update Value", solved)
-    # print(returns)
-    for node in reversed(visit_path):
-      # node.total_reward += returns[0 if node.player ==
-      #                              pyspiel.PlayerId.CHANCE else node.player]
-      # if returns[node.player] is not None:
-      node.history.visit(returns[node.player])
-
-      if solved and node.children:
-        player = node.children[0].player
-        # If any have max utility (won?), or all children are solved,
-        # choose the one best for the player choosing.
-        best = None
-        all_solved = True
-        # print("Got child done")
-        for child in node.children:
-          if child.outcome is None:
-            all_solved = False
-          elif best is None or child.outcome[player] > best.outcome[player]:
-            best = child
-        # print("Loop results", all_solved, best.outcome)
-        # print(best)
-        if (best is not None and (all_solved or best.outcome[player] == 1)):
-          node.outcome = best.outcome
+        if working_state.is_terminal():
+            returns = working_state.returns()
+            visit_path[-1].history.outcome = returns
+            solved = True
         else:
-          solved = False
+            obs = working_state.observation_tensor()
+            mask = working_state.legal_actions_mask()
+            returns, _ = az_evaluator._inference(obs, mask)
+            solved = False
 
-    #   # print(node)
+        for node in reversed(visit_path):
+            node.history.visit(returns[node.player])
 
-    # if root.outcome is not None:
-    #   break
-  #   print("-------")
-  # print("======= Done Update")
-  # print("\n\n\n")
-
-  return root
+            if solved and node.children:
+                player = node.children[0].player
+                # If any have max utility (won?), or all children are solved,
+                # choose the one best for the player choosing.
+                best = None
+                all_solved = True
+                for child in node.children:
+                    if child.history.outcome is None:
+                        all_solved = False
+                    elif best is None or child.history.outcome[player] > best.history.outcome[player]:
+                        best = child
+                if (best is not None and (all_solved or best.history.outcome[player] == 1)):
+                    node.history.outcome = best.history.outcome
+                else:
+                    solved = False

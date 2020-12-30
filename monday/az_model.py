@@ -79,6 +79,16 @@ def residual_layer(inputs, num_filters, kernel_size, training, updates, name):
       tfkl.Activation("relu"),
   ])
 
+# def dense_residual_layer(inputs, width, name):
+#   return cascade(inputs, [
+#       tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
+#       tfkl.Activation("relu"),
+#       tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
+#       batch_norm(training, updates, f"{name}_res_batch_norm2"),
+#       lambda x: tfkl.add([x, inputs]),
+#       tfkl.Activation("relu"),
+#   ])
+
 
 class TrainInput(collections.namedtuple(
     "TrainInput", "observation legals_mask policy value")):
@@ -300,11 +310,11 @@ class Model(object):
 
     # The value head
     if model_type == "mlp":
-      # value_head = torso  # Nothing specific before the shared value head.
-      value_head = cascade(torso, [
-          tfkl.Dense(nn_width, name="value_dense"),
-          tfkl.Activation("relu"),
-      ])
+      value_head = torso  # Nothing specific before the shared value head.
+      # value_head = cascade(torso, [
+      #     tfkl.Dense(nn_width, name="value_dense"),
+      #     tfkl.Activation("relu"),
+      # ])
     else:
       value_head = cascade(torso, [
           conv_2d(filters=1, kernel_size=1, name="value_conv"),
@@ -385,7 +395,7 @@ class Model(object):
 def config_to_model(config):
   model = Model.build_model(
       config.nn_model,
-      config.observation_shape,
+      [config.observation_shape],
       config.output_size,
       config.value_size,
       config.nn_width,

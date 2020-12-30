@@ -44,6 +44,7 @@ import sys
 import tempfile
 import time
 import traceback
+from tqdm import tqdm
 
 import numpy as np
 
@@ -117,15 +118,13 @@ def actor(*, config, game, logger, queue):
     model = model_lib.config_to_model(config)
 
     logger.print("Initializing bots")
+    az_evaluator = evaluator_lib.AlphaZeroEvaluator(model)
 
-    az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
-    evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
-    prior_fns = [az_evaluator.prior for player in range(game.num_players())]
     for game_num in itertools.count():
         if not update_checkpoint(logger, queue, model, az_evaluator):
             return
 
-        queue.put(play_and_explore(game, evaluators, prior_fns))
+        queue.put(play_and_explore(az_evaluator, game))
 
 
 @watcher
@@ -165,21 +164,24 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         """Collects the trajectories from actors into the replay buffer."""
         num_trajectories = 0
         num_states = 0
+        # replay_buffer.data = []
         print("Collection trajectories")
-        for trajectories in trajectory_generator():
-          for trajectory in trajectories:
+        with tqdm(total=200) as pbar:
+          for trajectory in trajectory_generator():
             num_trajectories += 1
             num_states += len(trajectory.states)
+            pbar.update(1)
 
             replay_buffer.extend(
                 model_lib.TrainInput(
                     s.observation, s.legals_mask, s.policy, trajectory.returns)
                 for s in trajectory.states)
 
-            print("Getting trajectories {}/{}".format(num_states, learn_rate))
+            # print("Getting trajectories {}/{}".format(num_states, learn_rate))
 
-          if num_states >= learn_rate:
-              break
+            # if num_trajectories > 200:
+            if num_states >= learn_rate:
+                break
 
         print("Returning trajectories", num_trajectories, num_states)
         return num_trajectories, num_states
@@ -201,11 +203,14 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         losses = sum(losses, model_lib.Losses(0, 0, 0)) / len(losses)
         logger.print(losses)
         logger.print("Checkpoint saved:", save_path)
+        # logger.print("Sample data", replay_buffer.sample(1))
 
         play_once(logger, config, game, model, step % 5)
         return save_path, losses
 
     last_time = time.time() - 60
+    prevl2 = None
+    prevl2Count = 0
     for step in itertools.count(1):
         num_trajectories, num_states = collect_trajectories()
         total_trajectories += num_trajectories
@@ -227,13 +232,19 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         broadcast_fn(save_path)
         logger.print()
 
+        latest_losses = losses[len(losses) - 1]
+        if latest_losses == prevl2:
+          prevl2Count += 1
+        else:
+          prevl2Count = 0
+          prevl2 = latest_losses
+
+        if (config.max_steps > 0 and step >= config.max_steps) or (latest_losses < config.learning_rate) or prevl2Count >= 3:
+            break
+
 def alpha_zero(config):
     """Start all the worker processes for a full alphazero setup."""
-    game = get_game(config.game)
-    config = config._replace(
-        observation_shape=game.observation_tensor_shape(),
-        output_size=game.num_distinct_actions(),
-        value_size=game.num_players())
+    game, config = get_game(config)
 
     print("Starting game", config.game)
 
@@ -245,6 +256,8 @@ def alpha_zero(config):
 
     if not os.path.exists(path):
       os.makedirs(path)
+      os.makedirs(path + '/log')
+      os.makedirs(path + '/cp')
     if not os.path.isdir(path):
       sys.exit("{} isn't a directory".format(path))
 
@@ -261,7 +274,7 @@ def alpha_zero(config):
             proc.queue.put(msg)
 
     try:
-      learner(game=game, config=config, actors=actors, broadcast_fn=broadcast)
+      learner(game=game, config=config, actors=actors, broadcast_fn=broadcast, num=config.nn_depth)
     except (KeyboardInterrupt, EOFError):
       print("Caught a KeyboardInterrupt, stopping early.")
     finally:

@@ -37,7 +37,7 @@ import utils.lru_cache as lru_cache
 class AlphaZeroEvaluator(Evaluator):
   """An AlphaZero MCTS Evaluator."""
 
-  def __init__(self, game, model, cache_size=2**16):
+  def __init__(self, model, cache_size=2**16):
     """An AlphaZero MCTS Evaluator."""
     # if game.num_players() != 2:
     #   raise ValueError("Game must be for two players.")
@@ -51,19 +51,17 @@ class AlphaZeroEvaluator(Evaluator):
 
     self._model = model
     self._cache = lru_cache.LRUCache(cache_size)
-    self._policy_cache = lru_cache.LRUCache(cache_size)
 
   def cache_info(self):
     return self._cache.info()
 
   def clear_cache(self):
     self._cache.clear()
-    self._policy_cache.clear()
 
-  def _inference(self, state, player):
+  def _inference(self, obs, mask):
     # Make a singleton batch
-    obs = np.expand_dims(state.observation_tensor(player), 0)
-    mask = np.expand_dims(state.legal_actions_mask(player), 0)
+    obs = np.expand_dims(obs, 0)
+    mask = np.expand_dims(mask, 0)
 
     # ndarray isn't hashable
     cache_key = obs.tobytes() + mask.tobytes()
@@ -73,31 +71,13 @@ class AlphaZeroEvaluator(Evaluator):
 
     return value[0], policy[0]  # Unpack batch
 
-  def evaluate(self, state, player):
+  def evaluate(self, obs, mask):
     """Returns a value for the given state."""
-    value, _ = self._inference(state, player)
+    value, _ = self._inference(obs, mask)
     # return np.array([value, -value])
     return value
 
-  def prior(self, state):
+  def prior(self, obs, mask):
     """Returns the probabilities for all actions."""
-    _, policy = self._inference(state, state.current_player())
-    return [(action, policy[action]) for action in state.legal_actions()]
-
-  def reuse_policy(self, player, state):
-    # Make a singleton batch
-    obs = np.expand_dims(state.full_observation_tensor(player), 0)
-    mask = np.expand_dims(state.legal_actions_mask(player), 0)
-
-    # ndarray isn't hashable
-    cache_key = obs.tobytes() + mask.tobytes()
-    return self._policy_cache.get(cache_key)
-
-  def save_policy(self, player, state, policy, total_reward, visit_count, outcome):
-    # Make a singleton batch
-    obs = np.expand_dims(state.full_observation_tensor(player), 0)
-    mask = np.expand_dims(state.legal_actions_mask(player), 0)
-
-    # ndarray isn't hashable
-    cache_key = obs.tobytes() + mask.tobytes()
-    return self._policy_cache.set(cache_key, (policy, total_reward, visit_count, outcome))
+    _, policy = self._inference(obs, mask)
+    return policy

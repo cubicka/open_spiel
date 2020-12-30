@@ -12,27 +12,27 @@ import az_model as model_lib
 from mcts.eval import mcts_evaluation, mcts_prior
 
 def play_once(logger, config, game, model, game_num):
-    az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
-    evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
-    prior_fns = [az_evaluator.prior for player in range(game.num_players())]
+    az_evaluator = evaluator_lib.AlphaZeroEvaluator(model)
+    # evaluators = [az_evaluator.evaluate for player in range(game.num_players())]
+    # prior_fns = [az_evaluator.prior for player in range(game.num_players())]
 
     # evaluators_random = [az_evaluator.evaluate for player in range(game.num_players())]
     # prior_fns_random = [az_evaluator.prior for player in range(game.num_players())]
 
-    evaluators_mcts = [mcts_evaluation for player in range(game.num_players())]
-    evaluators_mcts[0] = az_evaluator.evaluate
-    prior_fns_mcts = [mcts_prior for player in range(game.num_players())]
-    prior_fns_mcts[0] = az_evaluator.prior
-
-    state = game.new_initial_state()
+    # evaluators_mcts = [mcts_evaluation for player in range(game.num_players())]
+    # evaluators_mcts[0] = az_evaluator.evaluate
+    # prior_fns_mcts = [mcts_prior for player in range(game.num_players())]
+    # prior_fns_mcts[0] = az_evaluator.prior
 
     with file_logger.FileLogger(config.path + '/log', 'preview_' + str(game_num), config.quiet) as plogger:
         # play_and_explore(game, evaluators, prior_fns, None)
         # play_and_explore(game, evaluators_mcts, prior_fns_mcts, None)
 
-        play_and_explain(plogger, game, state, evaluators, prior_fns, True, True)
-        play_and_explain(plogger, game, state, evaluators_mcts, prior_fns_mcts, True)
-        play_and_explain(plogger, game, state, evaluators, prior_fns)
+        play_and_explain(plogger, az_evaluator, game)
+
+        # play_and_explain(plogger, game, state, evaluators, prior_fns, True, True)
+        # play_and_explain(plogger, game, state, evaluators_mcts, prior_fns_mcts, True)
+        # play_and_explain(plogger, game, state, evaluators, prior_fns)
         # play_and_explain(plogger, game, state, evaluators_mcts, prior_fns_mcts)
 
     # trajectories = []
@@ -49,14 +49,8 @@ def play_once(logger, config, game, model, game_num):
 
 @watcher
 def simulate_training(config, logger):
-    game = get_game(config.game)
-
-    # Extend config with game data
-    config = config._replace(
-        observation_shape=game.observation_tensor_shape(),
-        output_size=game.num_distinct_actions(),
-        value_size=game.num_players(),
-        cp_num=-1)
+    game, config = get_game(config)
+    config = config._replace(cp=-1)
     model = config_to_model(config)
     if config.cp_num and config.path:
         model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
