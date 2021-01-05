@@ -50,7 +50,7 @@ def play_once(logger, config, game, model, game_num):
 @watcher
 def simulate_training(config, logger):
     game, config = get_game(config)
-    config = config._replace(cp=-1)
+    # config = config._replace(cp_num=-1)
     model = config_to_model(config)
     if config.cp_num and config.path:
         model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))

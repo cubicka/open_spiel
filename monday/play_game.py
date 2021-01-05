@@ -5,7 +5,7 @@ from search_node import SearchNode
 
 random_state = np.random.default_rng()
 
-def nodes_of_state(az_evaluator, state):
+def nodes_of_state(az_evaluator, state, is_training=True):
     """Play one game from state, return the trajectory."""
 
     nodes = []
@@ -14,20 +14,21 @@ def nodes_of_state(az_evaluator, state):
     trajectory = Trajectory()
 
     is_prev_state_simultaneous = False
-    root = SearchNode(None, state.current_player(), 1)
     history_cache = {}
+    root = SearchNode(None, state.current_player(), 1)
 
     while not state.is_terminal():
         if is_prev_state_simultaneous:
             if len(root.children) == 0:
-                expand_node(az_evaluator, state, root, history_cache)
+                expand_node(az_evaluator, state, root, history_cache, True)
         else:
-            mcts_search(az_evaluator, state, root, history_cache)
+            mcts_search(az_evaluator, state, root, history_cache, is_training)
 
         # root.children.sort(key=SearchNode.sort_key)
         # root.children.reverse()
         nodes.append(root)
-        # print("root", root)
+        # print("root", state)
+        # print(state.legal_actions())
 
         policy = np.zeros(state.num_actions())
         for c in root.children:
@@ -36,14 +37,24 @@ def nodes_of_state(az_evaluator, state):
         policy /= policy.sum()
         policies.append(policy)
 
-        best_action = random_state.choice(len(policy), p=policy)
+        if is_training:
+            best_action = random_state.choice(len(policy), p=policy)
+        else:
+            best_action = root.best_child().action
         actions.append(best_action)
-        root = next((c for c in root.children if c.action == best_action))
+        # print("action", state.current_player(), best_action)
+        rcount, rreward = 0, 0
+        for c in root.children:
+            rreward += c.history.total_reward
+            rcount += c.history.explore_count
+        root.final_value = rreward / rcount
 
         trajectory.states.append(TrajectoryState(
             state.observation_tensor(), state.current_player(),
             state.legal_actions_mask(), best_action, policy,
-            root.history.value(root.player)))
+            root.final_value))
+
+        root = next((c for c in root.children if c.action == best_action))
 
         is_prev_state_simultaneous = state.is_simultaneous_node()
         state.apply_action(best_action)
@@ -51,26 +62,26 @@ def nodes_of_state(az_evaluator, state):
     trajectory.returns = state.returns()
     return (nodes, policies, actions, trajectory)
 
-def play_and_explore(az_evaluator, initial_state):
-    state = initial_state.clone()
-    _, _, _, trajectory = nodes_of_state(az_evaluator, state)
+def play_and_explore(az_evaluator, state):
+    state.reset()
+    _, _, _, trajectory = nodes_of_state(az_evaluator, state.clone())
     return trajectory
 
-def play_and_explain(logger, az_evaluator, initial_state):
+def play_and_explain(logger, az_evaluator, state):
     """Play one game, return the trajectory."""
-    state = initial_state.clone()
+    state.reset()
     actions = []
 
     # if is_shallow:
     #     nodes, policies, acts, trajectory = play_shallow_az(state.clone(), evaluators, prior_fns, game.num_distinct_actions(), is_stupid_enemy)
     # else:
-    nodes, policies, acts, trajectory = nodes_of_state(az_evaluator, state.clone())
+    nodes, policies, acts, trajectory = nodes_of_state(az_evaluator, state.clone(), False)
 
     logger.print("Initial state:\n{}".format(state))
     for idx, node in enumerate(nodes):
         vi, pi = az_evaluator._inference(state.observation_tensor(), state.legal_actions_mask())
         logger.print("Root ({}):".format(vi))
-        logger.print(node.to_str(state))
+        logger.print(node.to_str(state, True))
         # logger.print()
         logger.print("Children:")
         logger.print("\n" + node.children_str(state))

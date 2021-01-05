@@ -9,7 +9,7 @@ import numpy as np
 from search_node import NodeHistory, SearchNode
 
 random_state = np.random.default_rng()
-dirichlet_alpha = 1
+dirichlet_alpha = 0.1
 dirichlet_epsilon = 0.25
 uct_c = 2
 
@@ -46,10 +46,10 @@ def _find_leaf(az_evaluator, state, root, history_cache, is_first_expansion):
     working_state = state.clone()
     current_node = root
     is_prev_a_simultaneous = False
-    is_root = True
+    is_root = is_first_expansion
 
     while not working_state.is_terminal() and (current_node.history.explore_count > 0 or is_prev_a_simultaneous):
-        if len(current_node.children) == 0 or (is_first_expansion and is_root):
+        if len(current_node.children) == 0 or (is_root):
             expand_node(az_evaluator, working_state, current_node, history_cache, is_root)
 
         # print("children", current_node.children)
@@ -64,13 +64,13 @@ def _find_leaf(az_evaluator, state, root, history_cache, is_first_expansion):
 
     return visit_path, working_state
 
-def mcts_search(az_evaluator, state, root, history_cache):
+def mcts_search(az_evaluator, state, root, history_cache, is_training=True):
     for n in range(501):
-        visit_path, working_state = _find_leaf(az_evaluator, state, root, history_cache, n == 0)
+        visit_path, working_state = _find_leaf(az_evaluator, state, root, history_cache, n == 0 and is_training)
 
         if working_state.is_terminal():
             returns = working_state.returns()
-            visit_path[-1].history.outcome = returns
+            # visit_path[-1].history.outcome = returns
             solved = True
         else:
             obs = working_state.observation_tensor()

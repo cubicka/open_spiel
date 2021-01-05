@@ -2,7 +2,7 @@ import tictactoe
 import nimmt
 
 def get_game(config):
-    if (config.game == 'nimmt'): game = nimmt.NimmtGame()
+    if (config.game == 'nimmt'): game = nimmt.Nimmt()
     elif (config.game == 'tictactoe'): game = tictactoe.TicTacToe()
     else: raise Exception('Game {} is not found'.format(name))
 

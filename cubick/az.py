@@ -52,15 +52,8 @@ import az_eval as evaluator_lib
 import az_model as model_lib
 import tictactoe
 
-from open_spiel.python.utils import data_logger
 from open_spiel.python.utils import file_logger
 from open_spiel.python.utils import spawn
-from open_spiel.python.utils import stats
-
-import importlib.util
-spec = importlib.util.spec_from_file_location("pyspiel", "./build/python/pyspiel.so")
-pyspiel = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(pyspiel)
 
 class TrajectoryState(object):
   """A particular point along a trajectory."""
@@ -499,7 +492,7 @@ def preview_model(logger, config, game, model, step):
     with file_logger.FileLogger(config.path + '/log', 'preview_' + str(step), config.quiet) as plogger:
         az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
         random_evaluator = mcts.RandomRolloutEvaluator()
-        bots = [_init_bot(config, game, az_evaluator, True)]
+        bots = [_init_bot(config, game, az_evaluator, False)]
         
         for _ in range(1, game.num_players()):
           bots.append(mcts.MCTSBot(
@@ -510,7 +503,7 @@ def preview_model(logger, config, game, model, step):
                 solve=True,
                 verbose=False))
 
-        np.random.shuffle(bots)
+        # np.random.shuffle(bots)
         _play_game(plogger, 0, game, bots, 1, 0, True)
 
 @watcher
@@ -520,8 +513,8 @@ def simulate(config, logger):
         observation_shape=game.observation_tensor_shape(),
         output_size=game.num_distinct_actions())
     model = _init_model_from_config(config)
-    # model.load_checkpoint('./cubick/cp/checkpoint-10')
-    preview_model(logger, config, game, model, -1)
+    model.load_checkpoint('./cubick/tokaido/cp/checkpoint--1')
+    preview_model(logger, config, game, model, 1)
 
     # az_evaluator = evaluator_lib.AlphaZeroEvaluator(game, model)
     # bot = _init_bot(config, game, az_evaluator, True)
@@ -598,8 +591,8 @@ az_config = Config(
 )
 
 def main(unused_argv):
-    alpha_zero(config=az_config)
-    # simulate(config=az_config)
+    # alpha_zero(config=az_config)
+    simulate(config=az_config)
 
 # simulate(config=az_config)
 if __name__ == "__main__":

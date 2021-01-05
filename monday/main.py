@@ -165,12 +165,12 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         num_trajectories = 0
         num_states = 0
         # replay_buffer.data = []
-        print("Collection trajectories")
-        with tqdm(total=200) as pbar:
+        # print("Collection trajectories")
+        with tqdm(total=learn_rate) as pbar:
           for trajectory in trajectory_generator():
             num_trajectories += 1
             num_states += len(trajectory.states)
-            pbar.update(1)
+            pbar.update(len(trajectory.states))
 
             replay_buffer.extend(
                 model_lib.TrainInput(
@@ -183,18 +183,18 @@ def learner(*, game, config, actors, broadcast_fn, logger):
             if num_states >= learn_rate:
                 break
 
-        print("Returning trajectories", num_trajectories, num_states)
+        # print("Returning trajectories", num_trajectories, num_states)
         return num_trajectories, num_states
 
     def learn(step):
         """Sample from the replay buffer, update weights and save a checkpoint."""
         losses = []
-        print("Start learning #{}".format(step))
+        # print("Start learning #{}".format(step))
         for epoch in range(len(replay_buffer) // config.train_batch_size):
             data = replay_buffer.sample(config.train_batch_size)
             losses.append(model.update(data))
-            print("Learn Epoch #{}".format(epoch))
-            print(losses[len(losses) - 1])
+            # print("Learn Epoch #{}".format(epoch))
+            # print(losses[len(losses) - 1])
 
         # Always save a checkpoint, either for keeping or for loading the weights to
         # the actors. It only allows numbers, so use -1 as "latest".
@@ -203,6 +203,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         losses = sum(losses, model_lib.Losses(0, 0, 0)) / len(losses)
         logger.print(losses)
         logger.print("Checkpoint saved:", save_path)
+        print("#{}".format(step), losses)
         # logger.print("Sample data", replay_buffer.sample(1))
 
         play_once(logger, config, game, model, step % 5)
@@ -239,7 +240,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
           prevl2Count = 0
           prevl2 = latest_losses
 
-        if (config.max_steps > 0 and step >= config.max_steps) or (latest_losses < config.learning_rate) or prevl2Count >= 3:
+        if (config.max_steps > 0 and step >= config.max_steps) or (latest_losses < config.learning_rate) or prevl2Count >= 10:
             break
 
 def alpha_zero(config):

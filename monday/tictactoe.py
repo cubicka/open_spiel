@@ -1,18 +1,24 @@
 import numpy as np
 from utils.empty_copy import empty_copy
+from numba import jit
 
+@jit(nopython=True)
 def is_player_win(board, player):
     pad = player*9
-    return (all(board[pad:pad+3] == 1) or all(board[pad+3:pad+6] == 1) or all(board[pad+6:pad+9] == 1) or
-        all(board[pad:pad+9:3] == 1) or all(board[pad+1:pad+9:3] == 1) or all(board[pad+2:pad+9:3] == 1) or
-        all(board[pad+0:pad+9:4] == 1) or all(board[pad+2:pad+7:2] == 1))
+    return (np.all(board[pad:pad+3] == 1) or np.all(board[pad+3:pad+6] == 1) or 
+        np.all(board[pad+6:pad+9] == 1) or np.all(board[pad:pad+9:3] == 1) or 
+        np.all(board[pad+1:pad+9:3] == 1) or np.all(board[pad+2:pad+9:3] == 1) or
+        np.all(board[pad+0:pad+9:4] == 1) or np.all(board[pad+2:pad+7:2] == 1))
 
+@jit(nopython=True)
 def apply_action(board, player, action):
     board[player*9 + action] = 1
 
+@jit(nopython=True)
 def legal_actions(board, player):
     return [x for x in range(9) if board[x] == 0 and board[x+9] == 0]
 
+@jit(nopython=True)
 def observation_tensor(board, player):
     obs = [1, 0, 0, 1] if player == 0 else [0, 1, 1, 0]
     obs.extend(board)
@@ -24,6 +30,17 @@ class TicTacToe(object):
         self._cur_player = 0
         self._board = np.zeros([18], dtype=int)
         self._winner = None
+
+    def reset(self):
+        self.__init__()
+
+    def clone(self):
+        a_copy = empty_copy(self)
+        a_copy._cur_player = self._cur_player
+        a_copy._winner = self._winner
+        a_copy._is_terminal = self._is_terminal
+        a_copy._board = self._board.copy()
+        return a_copy
 
     def num_players(self):
         return 2
@@ -76,7 +93,6 @@ class TicTacToe(object):
         else:
           self._cur_player = 1 - self._cur_player
 
-
     def action_to_string(self, player, action):
         return "{}({},{})".format("x" if player == 0 else "o", action // 3, action % 3)
 
@@ -84,11 +100,3 @@ class TicTacToe(object):
         return "\n".join("{}: {}".format(player, 
             ", ".join("({},{})".format(x//3, x%3) for x in range(9) if self._board[x+player*9] == 1))
             for player in (0,1))
-
-    def clone(self):
-        a_copy = empty_copy(self)
-        a_copy._cur_player = self._cur_player
-        a_copy._winner = self._winner
-        a_copy._is_terminal = self._is_terminal
-        a_copy._board = self._board.copy()
-        return a_copy

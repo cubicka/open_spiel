@@ -36,18 +36,18 @@ class Config(collections.namedtuple(
   """A config for the model/experiment."""
   pass
 
-game_name='tictactoe'
+game_name='nimmt'
 az_config = Config(
     game=game_name,
     cp_num=None,
     path='./ma/' + game_name,
     learning_rate=0.001,
     weight_decay=1e-4,
-    train_batch_size=2**8,
-    replay_buffer_size=2**10,
+    train_batch_size=2**10,
+    replay_buffer_size=2**14,
     replay_buffer_reuse=4,
     max_steps=0,
-    checkpoint_freq=10,
+    checkpoint_freq=1000,
 
     actors=2,
     evaluators=1,
@@ -62,7 +62,7 @@ az_config = Config(
 
     nn_model="mlp",
     nn_width=256,
-    nn_depth=3,
+    nn_depth=10,
     observation_shape=None,
     output_size=None,
     value_size=None,

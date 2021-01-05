@@ -22,6 +22,7 @@ class SearchNode(object):
         self.action = action
         self.player = player
         self.prior = prior
+        self.final_value = 0
         if history is None:
             self.history = NodeHistory()
         else:
@@ -68,7 +69,7 @@ class SearchNode(object):
             for c in reversed(sorted(self.children, key=SearchNode.sort_key))
         ])
 
-    def to_str(self, state=None):
+    def to_str(self, state=None, final=False):
         """Returns the string representation of this node.
 
         Args:
@@ -80,9 +81,9 @@ class SearchNode(object):
             if state and self.action is not None else str(self.action))
         return ("{:>6}: player: {}, prior: {:5.3f}, value: {:6.3f}, sims: {:5d}, "
                 "outcome: {}, {:3d} children").format(
-                    action, self.player, self.prior, self.history.value(self.player), self.history.explore_count,
+                    action, self.player, self.prior, self.final_value if final else self.history.value(self.player), self.history.explore_count,
                     ("{:4.1f}".format(self.history.outcome[self.player])
-                    if self.history.outcome else "none"), len(self.children))
+                    if self.history.outcome is not None else "none"), len(self.children))
 
     def __str__(self):
         return self.to_str(None)
