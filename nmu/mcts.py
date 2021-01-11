@@ -4,7 +4,7 @@ import numpy as np
 from timeit import default_timer as timer
 
 def softmax(x):
-  e_x = np.exp(x)
+  e_x = np.exp(x - max(x))
   return e_x / e_x.sum()
 
 class Node(object):
@@ -84,10 +84,12 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
 #     root.children[i] = Node(policy[i])
 #     root.children[i].to_play = -root.to_play
   n_actions = policy_logits.shape[0]
-  policy = np.exp(policy_logits[legal_actions])
-  policy /= policy.sum()
+#   policy = np.exp(policy_logits[legal_actions])
+#   policy /= policy.sum()
+  policy = softmax(policy_logits[legal_actions])
 
   noises = np.random.dirichlet([root_dirichlet_alpha] * len(legal_actions))
+#   noises = policy
   policy_with_noise = np.array([p*0.75 + noise*0.25 for p, noise in zip(policy, noises)])
   root.children = [Node(a, p) for a,p in zip(legal_actions, policy_with_noise)]
 #   print("policy", policy)
@@ -103,8 +105,8 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
 
   # run_mcts
   min_max_stats = MinMaxStats()
-#   gtime, ftime, alltime = 0,0,0
-#   start = timer()
+  gtime, ftime, alltime = 0,0,0
+  start = timer()
   for _ in range(num_simulations):
     history = []
     node = root
@@ -119,23 +121,24 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
 
     # now we are at a leaf which is not "expanded", run the dynamics model
     parent = search_path[-2]
-    # t1 = timer()
+    t1 = timer()
     node.hidden_state, node.reward = m.gt(parent.hidden_state, history[-1])
-    # t2 = timer()
-    # gtime += t2 - t1
+    t2 = timer()
+    gtime += t2 - t1
 
     # use the model to estimate the policy and value, use policy as prior
     policy, value = m.ft(node.hidden_state)
-    # t3 = timer()
-    # ftime += t3 - t2
-    #print(history, value)
+    t3 = timer()
+    ftime += t3 - t2
+    # print(history, value)
 
     # create all the children of the newly expanded node
     # for i in range(policy.shape[0]):
     #   node.children[i] = Node(prior=policy[i])
     #   node.children[i].to_play = -node.to_play
-    softmax_policy = np.exp(policy)
-    softmax_policy /= softmax_policy.sum()
+    # softmax_policy = np.exp(policy)
+    # softmax_policy /= softmax_policy.sum()
+    softmax_policy = softmax(policy)
     node.children = [Node(i, softmax_policy[i]) for i in range(n_actions)]
 
     # update the state with "backpropagate"
@@ -148,9 +151,9 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
       min_max_stats.update(bnode.value())
       value = bnode.reward + discount * value
 
-#   t4 = timer()
-#   alltime += t4 - start
-#   print("timing", ftime, gtime, alltime)
+  t4 = timer()
+  alltime += t4 - start
+  print("timing", ftime, gtime, alltime)
   # output the final policy
   visit_counts = np.array([child.visit_count for child in root.children])
   visit_counts = visit_counts / visit_counts.sum()

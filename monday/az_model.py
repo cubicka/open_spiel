@@ -258,9 +258,9 @@ class Model(object):
         torso = cascade(torso, [
             tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
             tfkl.Activation("relu"),
-            tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
-            lambda x: tfkl.add([x, torso]),
-            tfkl.Activation("relu"),
+            # tfkl.Dense(nn_width, name=f"torso_{i}_dense"),
+            # lambda x: tfkl.add([x, torso]),
+            # tfkl.Activation("relu"),
         ])
     elif model_type == "conv2d":
       torso = tfkl.Reshape(input_shape)(observations)

@@ -74,6 +74,10 @@ def observation_tensor(mode, num_players, player, hands, boards, bulls, stacks):
     obs[sx+player] = 0
     sx += 10
 
+    # for hand in hands:
+    #     for card in hand[hand != 0]:
+    #         obs[sx+card-1] = 1
+    #     sx += 104
     for card in hands[player][hands[player] != 0]:
         obs[sx+card-1] = 1
     sx += 104
@@ -175,7 +179,7 @@ class Nimmt(object):
     def __init__(self):
         self._cur_player = 0
         self._mode = 0
-        self._num_players = np.random.randint(2, 11)
+        self._num_players = 2 # np.random.randint(2, 11)
 
         # self._hands = List([set([0])])
         # self._bulls = List([List([0])])

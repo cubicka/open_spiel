@@ -12,16 +12,15 @@ def nodes_of_state(az_evaluator, state, is_training=True):
     policies = []
     actions = []
     trajectory = Trajectory()
-
     is_prev_state_simultaneous = False
-    history_cache = {}
-    root = SearchNode(None, state.current_player(), 1)
 
     while not state.is_terminal():
         if is_prev_state_simultaneous:
             if len(root.children) == 0:
                 expand_node(az_evaluator, state, root, history_cache, True)
         else:
+            history_cache = {}
+            root = SearchNode(None, state.current_player(), 1)
             mcts_search(az_evaluator, state, root, history_cache, is_training)
 
         # root.children.sort(key=SearchNode.sort_key)
