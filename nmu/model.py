@@ -5,7 +5,27 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import *
 from utils.lru_cache import LRUCache
 import tensorflow.compat.v1 as tfv1
+import collections
 tfv1.logging.set_verbosity(tfv1.logging.ERROR)
+
+class Losses(collections.namedtuple("Losses", "policy value l2")):
+  """Losses from a training step."""
+
+  @property
+  def total(self):
+    return self.policy + self.value + self.l2
+
+  def __str__(self):
+    return ("Losses(total: {:.3f}, policy: {:.3f}, value: {:.3f}, "
+            "l2: {:.3f})").format(self.total, self.policy, self.value, self.l2)
+
+  def __add__(self, other):
+    return Losses(self.policy + other.policy,
+                  self.value + other.value,
+                  self.l2 + other.l2)
+
+  def __truediv__(self, n):
+    return Losses(self.policy / n, self.value / n, self.l2 / n)
 
 def cascade(x, fns):
   for fn in fns:
@@ -437,7 +457,7 @@ class MuModel():
     return self.saver.restore(self.session, path)
 
   def train(self, obs, acts0, acts1, acts2, acts3, pols0, pols1, pols2, pols3, pols4, rets0, rets1, rets2, rets3, rets4):
-    return self.session.run([self.optimizer_train, self.loss_policy, self.loss_value, self.l2_reg_loss],
+    _, l1, l2, l3 = self.session.run([self.optimizer_train, self.loss_policy, self.loss_value, self.l2_reg_loss],
       feed_dict={self.h_input: np.array(obs),
       self.target_actions[0]: acts0,
       self.target_actions[1]: acts1,
@@ -457,6 +477,8 @@ class MuModel():
     #   self.target_policies: np.array(target_policies),
     #   self.target_values: np.array(target_values)
       })
+
+    return Losses(l1, l2, l3)
 
   def train_on_batch(self, batch):
     X,Y = reformat_batch(batch, self.a_dim, not self.with_policy)
@@ -497,3 +519,7 @@ class MuModel():
     mu = Model([o_0] + a_all, mu_all)
     # mu.compile(Adam(lr), loss_all)
     self.mu = mu
+
+  @property
+  def num_trainable_variables(self):
+    return sum(np.prod(v.shape) for v in tfv1.trainable_variables())

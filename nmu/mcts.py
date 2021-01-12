@@ -29,7 +29,7 @@ class Node(object):
 pb_c_base = 19652
 pb_c_init = 1.25
 
-discount = 0.95
+discount = 1
 root_dirichlet_alpha = 0.1
 root_exploration_fraction = 0.25
 
@@ -73,7 +73,7 @@ def select_child(node: Node, min_max_stats):
   _, action, child = random.choice(list(filter(lambda x: x[0] == smax, out)))
   return action, child
 
-def mcts_search(m, observation, legal_actions, num_simulations=10):
+def mcts_search(m, observation, legal_actions, num_simulations=10, with_noise=True):
   # init the root node
   root = Node(None, 1)
   root.hidden_state = m.ht(observation)
@@ -88,9 +88,11 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
 #   policy /= policy.sum()
   policy = softmax(policy_logits[legal_actions])
 
-  noises = np.random.dirichlet([root_dirichlet_alpha] * len(legal_actions))
-#   noises = policy
-  policy_with_noise = np.array([p*0.75 + noise*0.25 for p, noise in zip(policy, noises)])
+  if with_noise:
+    noises = np.random.dirichlet([root_dirichlet_alpha] * len(legal_actions))
+    policy_with_noise = np.array([p*0.75 + noise*0.25 for p, noise in zip(policy, noises)])
+  else:
+    policy_with_noise = policy
   root.children = [Node(a, p) for a,p in zip(legal_actions, policy_with_noise)]
 #   print("policy", policy)
 #   print("noise", policy_with_noise)
@@ -105,8 +107,8 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
 
   # run_mcts
   min_max_stats = MinMaxStats()
-  gtime, ftime, alltime = 0,0,0
-  start = timer()
+  # gtime, ftime, alltime = 0,0,0
+  # start = timer()
   for _ in range(num_simulations):
     history = []
     node = root
@@ -121,15 +123,16 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
 
     # now we are at a leaf which is not "expanded", run the dynamics model
     parent = search_path[-2]
-    t1 = timer()
-    node.hidden_state, node.reward = m.gt(parent.hidden_state, history[-1])
-    t2 = timer()
-    gtime += t2 - t1
+    # t1 = timer()
+    node.hidden_state, _ = m.gt(parent.hidden_state, history[-1])
+    node.reward = 0
+    # t2 = timer()
+    # gtime += t2 - t1
 
     # use the model to estimate the policy and value, use policy as prior
     policy, value = m.ft(node.hidden_state)
-    t3 = timer()
-    ftime += t3 - t2
+    # t3 = timer()
+    # ftime += t3 - t2
     # print(history, value)
 
     # create all the children of the newly expanded node
@@ -151,9 +154,9 @@ def mcts_search(m, observation, legal_actions, num_simulations=10):
       min_max_stats.update(bnode.value())
       value = bnode.reward + discount * value
 
-  t4 = timer()
-  alltime += t4 - start
-  print("timing", ftime, gtime, alltime)
+  # t4 = timer()
+  # alltime += t4 - start
+  # print("timing", ftime, gtime, alltime)
   # output the final policy
   visit_counts = np.array([child.visit_count for child in root.children])
   visit_counts = visit_counts / visit_counts.sum()

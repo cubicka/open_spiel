@@ -1,7 +1,8 @@
 import numpy as np
-from mcts import mcts_search, print_tree
+from mcts import mcts_search
+import utils.logger as file_logger
 
-def play(mu, game):
+def play(mu, game, n_mcts_sim=500, with_noise=True):
     observations = []
     policies = []
     actions = []
@@ -17,7 +18,7 @@ def play(mu, game):
         players.append(cur_player)
         hs = mu.ht(obs)
 
-        policy, root = mcts_search(mu, obs, legal_actions, 500)
+        policy, root = mcts_search(mu, obs, legal_actions, n_mcts_sim, with_noise)
         policies.append(policy)
         values.append(root.value())
 
@@ -26,6 +27,47 @@ def play(mu, game):
         actions.append(next_action)
 
     return observations, players, actions, policies, values, game.returns()
+
+def explore(path, mu, game, n_mcts_sim=500):
+  with file_logger.FileLogger(path, -1, True) as logger:
+    while not game.is_terminal():
+        # print(game)
+        logger.print("Initial state:\n{}".format(game))
+
+        obs = game.observation_tensor()
+        print_observation(logger, obs)
+
+        cur_player = game.current_player()
+        legal_actions = game.legal_actions()
+        hs = mu.ht(obs)
+
+        policy, root = mcts_search(mu, obs, legal_actions, n_mcts_sim, False)
+
+        logger.print("Root ({}):".format(root.value()))
+        logger.print(policy)
+        print_tree(logger, root)
+        # logger.print(node.to_str(state, True))
+        # logger.print()
+        # logger.print("Children:")
+        # logger.print("\n" + node.children_str(state))
+
+        next_action = np.random.choice(legal_actions, p=policy[legal_actions])
+        game.apply_action(next_action)
+
+        logger.print(next_action)
+        logger.print("\n\n")
+
+
+def print_observation(logger, obs):
+  logger.print(np.where(obs != 0))
+
+
+def print_tree(logger, x, hist=[], depth=1):
+  if x.visit_count != 0:
+    logger.print("%.3f %4d %-16s %8.4f" % (x.prior, x.visit_count, str(hist), x.value()))
+  if depth > 0:
+    for c in x.children:
+      print_tree(logger, c, hist+[c.action], depth-1)
 
 def to_one_hot(x,n):
   ret = np.zeros([n])
@@ -80,7 +122,7 @@ def history_to_target(a_dim, game_history):
     targets = []
     for player in unique_players:
         player_idxs = [idx for idx, p in enumerate(players) if p == player]
-        print("player_idxs", player_idxs)
+        # print("player_idxs", player_idxs)
         add_target(a_dim, targets, (
             # observations[players == player],
             # actions[players == player],
