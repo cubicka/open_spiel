@@ -93,6 +93,7 @@ def actor(*, config, game, logger, queue):
             return
 
         # print("wait actor", game_num)
+        game.reset()
         queue.put(play(model, game.clone()))
 
 
@@ -114,7 +115,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
     learn_rate = config.replay_buffer_size // config.replay_buffer_reuse
     total_trajectories = 0
 
-    explore(config.path, model, game.clone())
+    explore(config.path, model, game.clone(), 0)
     a_dim = game.num_actions()
 
     def trajectory_generator():
@@ -181,7 +182,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         print("#{}".format(step), losses)
         # logger.print("Sample data", replay_buffer.sample(1))
 
-        explore(config.path, model, game.clone())
+        explore(config.path, model, game.clone(), step % 5)
         return save_path, losses
 
     last_time = time.time() - 60
@@ -242,7 +243,7 @@ def alpha_zero(config):
     print("Model type: %s(%s, %s)" % (config.nn_model, config.nn_width,
                                       config.nn_depth))
 
-    actors = [spawn.Process(actor, kwargs={"game": game, "config": config,
+    actors = [spawn.Process(actor, kwargs={"game": game.clone(), "config": config,
                                             "num": i})
                 for i in range(config.actors)]
 
@@ -251,7 +252,7 @@ def alpha_zero(config):
             proc.queue.put(msg)
 
     try:
-      learner(game=game, config=config, actors=actors, broadcast_fn=broadcast, num=config.nn_depth)
+      learner(game=game.clone(), config=config, actors=actors, broadcast_fn=broadcast, num=config.nn_depth)
     except (KeyboardInterrupt, EOFError):
       print("Caught a KeyboardInterrupt, stopping early.")
     finally:

@@ -424,27 +424,29 @@ class MuModel():
 
   def ht(self, o_0):
     hidden_state = self.session.run([self.h_state],feed_dict={self.h_input: o_0[None]})[0][0]
-    max_hidden, min_hidden = hidden_state.max(), hidden_state.min()
-    scale = max_hidden - min_hidden
-    if scale < 1e-5: scale += 1e-5
-    # print("ht")
-    # print(hidden_state)
-    # print((hidden_state - min_hidden) / scale)
-    return (hidden_state - min_hidden) / scale
+    return hidden_state
+    # max_hidden, min_hidden = hidden_state.max(), hidden_state.min()
+    # scale = max_hidden - min_hidden
+    # if scale < 1e-5: scale += 1e-5
+    # # print("ht")
+    # # print(hidden_state)
+    # # print((hidden_state - min_hidden) / scale)
+    # return (hidden_state - min_hidden) / scale
 
   def gt(self, s_km1, a_k):
     a_hot = to_one_hot(a_k, self.a_dim)
     # inp = s_km1.tobytes() + a_hot.tobytes()
     s_k, r_k = self.session.run([self.g_state, self.g_reward], 
         feed_dict={self.g_input_state: s_km1[None], self.g_input_action: a_hot[None]})
-    hidden_state = s_k[0]
-    max_hidden, min_hidden = hidden_state.max(), hidden_state.min()
-    scale = max_hidden - min_hidden
-    if scale < 1e-5: scale += 1e-5
-    # print("gt")
-    # print(hidden_state)
-    # print((hidden_state - min_hidden) / scale)
-    return (hidden_state - min_hidden) / scale, r_k[0][0]
+    return s_k[0], r_k[0][0]
+    # hidden_state = s_k[0]
+    # max_hidden, min_hidden = hidden_state.max(), hidden_state.min()
+    # scale = max_hidden - min_hidden
+    # if scale < 1e-5: scale += 1e-5
+    # # print("gt")
+    # # print(hidden_state)
+    # # print((hidden_state - min_hidden) / scale)
+    # return (hidden_state - min_hidden) / scale, r_k[0][0]
 
   def ft(self, s_k):
     policy, value = self.session.run([self.f_policy, self.f_value],feed_dict={self.f_input: s_k[None]})

@@ -2,6 +2,10 @@ import numpy as np
 from mcts import mcts_search
 import utils.logger as file_logger
 
+def softmax(x):
+  e_x = np.exp(x - max(x))
+  return e_x / e_x.sum()
+
 def play(mu, game, n_mcts_sim=500, with_noise=True):
     observations = []
     policies = []
@@ -22,14 +26,31 @@ def play(mu, game, n_mcts_sim=500, with_noise=True):
         policies.append(policy)
         values.append(root.value())
 
-        next_action = np.random.choice(legal_actions, p=policy[legal_actions])
+        next_action = select_action(legal_actions, policy[legal_actions], 1)
         game.apply_action(next_action)
         actions.append(next_action)
 
     return observations, players, actions, policies, values, game.returns()
 
-def explore(path, mu, game, n_mcts_sim=500):
-  with file_logger.FileLogger(path, -1, True) as logger:
+def explore(path, mu, game, step, n_mcts_sim=500):
+  with file_logger.FileLogger(path + '/log', step, True) as logger:
+    print_observation(logger, game.observation_tensor())
+    hs = mu.ht(game.observation_tensor())
+
+    pols, vals = mu.ft(hs)
+    soft_pol = softmax(pols)
+
+    logger.print(vals)
+    logger.print(pols)
+    logger.print(soft_pol)
+
+    a0 = select_action(game.legal_actions(), soft_pol[game.legal_actions()], 1)
+    gs, _ = mu.gt(hs, a0)
+
+    logger.print(hs)
+    logger.print(gs)
+    logger.print("\n\n")
+
     while not game.is_terminal():
         # print(game)
         logger.print("Initial state:\n{}".format(game))
@@ -41,33 +62,41 @@ def explore(path, mu, game, n_mcts_sim=500):
         legal_actions = game.legal_actions()
         hs = mu.ht(obs)
 
+        # logger.print(legal_actions)
         policy, root = mcts_search(mu, obs, legal_actions, n_mcts_sim, False)
 
         logger.print("Root ({}):".format(root.value()))
         logger.print(policy)
-        print_tree(logger, root)
+        print_tree(logger, root, game)
         # logger.print(node.to_str(state, True))
         # logger.print()
         # logger.print("Children:")
         # logger.print("\n" + node.children_str(state))
 
-        next_action = np.random.choice(legal_actions, p=policy[legal_actions])
+        next_action = select_action(legal_actions, policy[legal_actions], 0) # np.random.choice(legal_actions, p=policy[legal_actions])
+        logger.print(game.action_to_string(game.current_player(), next_action))
         game.apply_action(next_action)
 
-        logger.print(next_action)
         logger.print("\n\n")
 
+    logger.print("Final state:\n{}".format(game))
+    logger.print("Returns:\n{}".format(game.returns()))
+
+def select_action(actions, p, temp):
+    if temp == 0:
+        return actions[np.argmax(p)]
+    return np.random.choice(actions, p=p)
 
 def print_observation(logger, obs):
   logger.print(np.where(obs != 0))
 
 
-def print_tree(logger, x, hist=[], depth=1):
+def print_tree(logger, x, game, hist=[], depth=1):
   if x.visit_count != 0:
     logger.print("%.3f %4d %-16s %8.4f" % (x.prior, x.visit_count, str(hist), x.value()))
   if depth > 0:
     for c in x.children:
-      print_tree(logger, c, hist+[c.action], depth-1)
+      print_tree(logger, c, game, hist+[game.action_to_string(game.current_player(), c.action)], depth-1)
 
 def to_one_hot(x,n):
   ret = np.zeros([n])

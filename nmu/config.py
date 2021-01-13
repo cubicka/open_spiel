@@ -39,7 +39,7 @@ class Config(collections.namedtuple(
 game_name='tictactoe'
 az_config = Config(
     game=game_name,
-    cp_num=None,
+    cp_num=4,
     path='./ma/' + game_name,
     learning_rate=0.001,
     weight_decay=1e-4,
@@ -47,7 +47,7 @@ az_config = Config(
     replay_buffer_size=2**14,
     replay_buffer_reuse=4,
     max_steps=0,
-    checkpoint_freq=1000,
+    checkpoint_freq=100,
 
     actors=2,
     evaluators=1,
