@@ -104,7 +104,8 @@ def learner(*, game, config, actors, broadcast_fn, logger):
     # model = model_lib.config_to_model(config)
     model = MuModel(game.num_states(), game.num_actions())
     logger.print("Model size:", model.num_trainable_variables, "variables")
-    if config.cp_num and config.path:
+    if config.cp_num is not None and config.path:
+        logger.print("load checkpoint:", config.path + '/cp/checkpoint-' + str(config.cp_num))
         model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
   
     save_path = model.save_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
@@ -115,7 +116,15 @@ def learner(*, game, config, actors, broadcast_fn, logger):
     learn_rate = config.replay_buffer_size // config.replay_buffer_reuse
     total_trajectories = 0
 
-    explore(config.path, model, game.clone(), 0)
+    def prevn(n):
+        if n > 0: return n - 1
+        return 4
+
+    prev_model = MuModel(game.num_states(), game.num_actions())
+    if config.cp_num and config.path:
+        prev_model.load_checkpoint(config.path + '/cp/checkpoint-' + str(prevn(config.cp_num)))
+
+    explore(config.path, prev_model, model, game.clone(), 0)
     a_dim = game.num_actions()
 
     def trajectory_generator():
@@ -175,14 +184,15 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         # save_path = model.save_checkpoint(
         #     step if step % config.checkpoint_freq == 0 else -1)
         save_path = model.save_checkpoint(config.path + '/cp/checkpoint-' + str(step % 5))
-        logger.print(len(replay_buffer), config.train_batch_size, len(losses))
+        # logger.print(len(replay_buffer), config.train_batch_size, len(losses))
         losses = sum(losses, Losses(0, 0, 0)) / len(losses)
         logger.print(losses)
         logger.print("Checkpoint saved:", save_path)
         print("#{}".format(step), losses)
         # logger.print("Sample data", replay_buffer.sample(1))
 
-        explore(config.path, model, game.clone(), step % 5)
+        prev_model.load_checkpoint(config.path + '/cp/checkpoint-' + str(prevn(step%5)))
+        explore(config.path, prev_model, model, game.clone(), step % 5)
         return save_path, losses
 
     last_time = time.time() - 60

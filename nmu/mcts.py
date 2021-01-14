@@ -2,7 +2,9 @@ import math
 import random
 import numpy as np
 from timeit import default_timer as timer
+from numba import jit
 
+@jit(nopython=True)
 def softmax(x):
   e_x = np.exp(x - max(x))
   return e_x / e_x.sum()
@@ -37,8 +39,8 @@ class MinMaxStats(object):
   """A class that holds the min-max values of the tree."""
 
   def __init__(self):
-    self.maximum = -float('inf')
-    self.minimum = float('inf')
+    self.maximum = 1 # -float('inf')
+    self.minimum = -1 # float('inf')
 
   def update(self, value: float):
     self.maximum = max(self.maximum, value)
@@ -52,19 +54,21 @@ class MinMaxStats(object):
 
 # The score for a node is based on its value, plus an exploration bonus based on
 # the prior.
-def ucb_score(parent: Node, child: Node, min_max_stats: MinMaxStats) -> float:
+# def ucb_score(parent: Node, child: Node, min_max_stats: MinMaxStats) -> float:
+def ucb_score(parent: Node, child: Node) -> float:
   pb_c = math.log((parent.visit_count + pb_c_base + 1) / pb_c_base) + pb_c_init
   pb_c *= math.sqrt(parent.visit_count) / (child.visit_count + 1)
 
   prior_score = pb_c * child.prior
-  if child.visit_count > 0:
-    #   value_score = child.reward + discount * min_max_stats.normalize(child.value())
-      value_score = min_max_stats.normalize(child.value())
-  else:
-    value_score = 0
+  # if child.visit_count > 0:
+  #   #   value_score = child.reward + discount * min_max_stats.normalize(child.value())
+  #     # value_score = min_max_stats.normalize(child.value())
+  #   value_score = child.value()
+  # else:
+  #   value_score = 0
 
   #print(prior_score, value_score)
-  return prior_score + value_score
+  return prior_score + child.value()
 
 def select_child(node: Node, min_max_stats):
   out = [(ucb_score(node, child, min_max_stats), child) for child in node.children]
@@ -106,20 +110,25 @@ def mcts_search(m, observation, legal_actions, num_simulations=10, with_noise=Tr
 #     root.children[a].prior = root.children[a].prior * (1 - frac) + n * frac
 
   # run_mcts
-  min_max_stats = MinMaxStats()
+  # min_max_stats = MinMaxStats()
   # gtime, ftime, alltime = 0,0,0
   # start = timer()
+  max_depth = 0
+
   for _ in range(num_simulations):
     history = []
     node = root
     search_path = [node]
+    current_depth = 0
 
     # traverse down the tree according to the ucb_score 
     while node.expanded():
       #action, node = select_child(node, min_max_stats)
-      node = max(node.children, key=lambda c: ucb_score(node, c, min_max_stats))
+      # node = max(node.children, key=lambda c: ucb_score(node, c, min_max_stats))
+      node = max(node.children, key=lambda c: ucb_score(node, c))
       history.append(node.action)
       search_path.append(node)
+      current_depth += 1
 
     # now we are at a leaf which is not "expanded", run the dynamics model
     parent = search_path[-2]
@@ -149,10 +158,12 @@ def mcts_search(m, observation, legal_actions, num_simulations=10, with_noise=Tr
     #   if minimax:
     #     bnode.value_sum += value if root.to_play == bnode.to_play else -value
     #   else:
-      bnode.value_sum += value
+      bnode.value_sum += value[0]
       bnode.visit_count += 1
-      min_max_stats.update(bnode.value())
+      # min_max_stats.update(bnode.value())
       value = bnode.reward + discount * value
+
+    max_depth = max(max_depth, current_depth)
 
   # t4 = timer()
   # alltime += t4 - start
@@ -164,7 +175,7 @@ def mcts_search(m, observation, legal_actions, num_simulations=10, with_noise=Tr
 #   child_policy = softmax(visit_counts)
   policy = np.zeros(n_actions)
   policy[legal_actions] = visit_counts
-  return policy, root
+  return policy, root, max_depth
 
 def print_tree(x, hist=[], depth=0):
   if x.visit_count != 0:

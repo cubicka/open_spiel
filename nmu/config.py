@@ -39,7 +39,7 @@ class Config(collections.namedtuple(
 game_name='tictactoe'
 az_config = Config(
     game=game_name,
-    cp_num=4,
+    cp_num=0,
     path='./ma/' + game_name,
     learning_rate=0.001,
     weight_decay=1e-4,
@@ -52,7 +52,7 @@ az_config = Config(
     actors=2,
     evaluators=1,
     uct_c=2,
-    max_simulations=300,
+    max_simulations=500,
     policy_alpha=1,
     policy_epsilon=0.25,
     temperature=1,

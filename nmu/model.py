@@ -97,7 +97,7 @@ class MuModel():
   LAYER_DIM = 512
   BN = False
 
-  def __init__(self, o_dim, a_dim, s_dim=8, K=5, lr=0.001, weight_decay=1e-4):
+  def __init__(self, o_dim, a_dim, s_dim=8, K=5, lr=0.0002, weight_decay=1e-4):
     self.o_dim = o_dim
     self.a_dim = a_dim
     self.K = K

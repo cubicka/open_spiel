@@ -22,7 +22,7 @@ def play(mu, game, n_mcts_sim=500, with_noise=True):
         players.append(cur_player)
         hs = mu.ht(obs)
 
-        policy, root = mcts_search(mu, obs, legal_actions, n_mcts_sim, with_noise)
+        policy, root, _ = mcts_search(mu, obs, legal_actions, n_mcts_sim, with_noise)
         policies.append(policy)
         values.append(root.value())
 
@@ -32,7 +32,7 @@ def play(mu, game, n_mcts_sim=500, with_noise=True):
 
     return observations, players, actions, policies, values, game.returns()
 
-def explore(path, mu, game, step, n_mcts_sim=500):
+def explore(path, prevmu, mu, game, step, n_mcts_sim=500):
   with file_logger.FileLogger(path + '/log', step, True) as logger:
     print_observation(logger, game.observation_tensor())
     hs = mu.ht(game.observation_tensor())
@@ -63,11 +63,12 @@ def explore(path, mu, game, step, n_mcts_sim=500):
         hs = mu.ht(obs)
 
         # logger.print(legal_actions)
-        policy, root = mcts_search(mu, obs, legal_actions, n_mcts_sim, False)
+        policy, root, _ = mcts_search(mu, obs, legal_actions, n_mcts_sim, False)
+        prevpolicy, prevroot, _ = mcts_search(prevmu, obs, legal_actions, n_mcts_sim, False)
 
         logger.print("Root ({}):".format(root.value()))
         logger.print(policy)
-        print_tree(logger, root, game)
+        print_tree(logger, root, prevroot, game)
         # logger.print(node.to_str(state, True))
         # logger.print()
         # logger.print("Children:")
@@ -91,12 +92,15 @@ def print_observation(logger, obs):
   logger.print(np.where(obs != 0))
 
 
-def print_tree(logger, x, game, hist=[], depth=1):
+def print_tree(logger, x, prevx, game, hist=[], depth=1):
   if x.visit_count != 0:
-    logger.print("%.3f %4d %-16s %8.4f" % (x.prior, x.visit_count, str(hist), x.value()))
+    delta = x.visit_count - prevx.visit_count if prevx is not None else x.visit_count
+    dv = x.value() - prevx.value() if prevx is not None else x.value()
+    logger.print("%.3f %4d %+4d %-16s %8.4f %+5.4f" % (x.prior, x.visit_count, delta, str(hist), x.value(), dv))
   if depth > 0:
     for c in x.children:
-      print_tree(logger, c, game, hist+[game.action_to_string(game.current_player(), c.action)], depth-1)
+      prevchild = next((pc for pc in prevx.children if pc.action == c.action))
+      print_tree(logger, c, prevchild, game, hist+[game.action_to_string(game.current_player(), c.action)], depth-1)
 
 def to_one_hot(x,n):
   ret = np.zeros([n])
