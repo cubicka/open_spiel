@@ -12,17 +12,17 @@ def prevn(n):
 
 def play_explore(config):
     game, config = get_game(config)
-    model = MuModel(game.num_states(), game.num_actions())
+    model = MuModel(game.num_states(), game.num_actions(), s_dim=game.num_states())
     model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
 
-    prevmodel = MuModel(game.num_states(), game.num_actions())
+    prevmodel = MuModel(game.num_states(), game.num_actions(), s_dim=game.num_states())
     prevmodel.load_checkpoint(config.path + '/cp/checkpoint-' + str(prevn(config.cp_num)))
 
     explore(config.path, prevmodel, model, game.clone(), config.cp_num)
 
 def diagnose(config):
     game, config = get_game(config)
-    model = MuModel(game.num_states(), game.num_actions())
+    model = MuModel(game.num_states(), game.num_actions(), s_dim=game.num_states())
     model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
 
     dm = DiagnoseModel(config, model)
@@ -32,7 +32,7 @@ def diagnose(config):
 
 def main(unused_argv):
     config = az_config
-    config = config._replace(cp_num=0)
+    config = config._replace(cp_num=1)
     # diagnose(config)
     play_explore(config=config)
 

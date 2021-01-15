@@ -83,7 +83,7 @@ def actor(*, config, game, logger, queue):
     """An actor process runner that generates games and returns trajectories."""
     logger.print("Initializing model")
     # model = model_lib.config_to_model(config)
-    model = MuModel(game.num_states(), game.num_actions())
+    model = MuModel(game.num_states(), game.num_actions(), s_dim=game.num_states())
 
     logger.print("Initializing bots")
     # az_evaluator = evaluator_lib.AlphaZeroEvaluator(model)
@@ -102,13 +102,13 @@ def learner(*, game, config, actors, broadcast_fn, logger):
     """A learner that consumes the replay buffer and trains the network."""
     logger.print("Initializing model")
     # model = model_lib.config_to_model(config)
-    model = MuModel(game.num_states(), game.num_actions())
+    model = MuModel(game.num_states(), game.num_actions(), s_dim=game.num_states())
     logger.print("Model size:", model.num_trainable_variables, "variables")
     if config.cp_num is not None and config.path:
         logger.print("load checkpoint:", config.path + '/cp/checkpoint-' + str(config.cp_num))
         model.load_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
   
-    save_path = model.save_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num))
+    save_path = model.save_checkpoint(config.path + '/cp/checkpoint-' + str(config.cp_num if config.cp_num is not None else 0))
     broadcast_fn(save_path)
     logger.print("Initial checkpoint:", save_path)
 
@@ -120,7 +120,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         if n > 0: return n - 1
         return 4
 
-    prev_model = MuModel(game.num_states(), game.num_actions())
+    prev_model = MuModel(game.num_states(), game.num_actions(), s_dim=game.num_states())
     if config.cp_num and config.path:
         prev_model.load_checkpoint(config.path + '/cp/checkpoint-' + str(prevn(config.cp_num)))
 

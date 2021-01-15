@@ -34,36 +34,46 @@ def play(mu, game, n_mcts_sim=500, with_noise=True):
 
 def explore(path, prevmu, mu, game, step, n_mcts_sim=500):
   with file_logger.FileLogger(path + '/log', step, True) as logger:
-    print_observation(logger, game.observation_tensor())
-    hs = mu.ht(game.observation_tensor())
+    # print_observation(logger, game.observation_tensor())
+    # hs = mu.ht(game.observation_tensor())
 
-    pols, vals = mu.ft(hs)
-    soft_pol = softmax(pols)
+    # pols, vals = mu.ft(hs)
+    # soft_pol = softmax(pols)
 
-    logger.print(vals)
-    logger.print(pols)
-    logger.print(soft_pol)
+    # logger.print(vals)
+    # logger.print(pols)
+    # logger.print(soft_pol)
 
-    a0 = select_action(game.legal_actions(), soft_pol[game.legal_actions()], 1)
-    gs, _ = mu.gt(hs, a0)
+    # a0 = select_action(game.legal_actions(), soft_pol[game.legal_actions()], 1)
+    # gs, _ = mu.gt(hs, a0)
 
-    logger.print(hs)
-    logger.print(gs)
-    logger.print("\n\n")
+    # logger.print(hs)
+    # logger.print(gs)
+    # logger.print("\n\n")
+
+    observations = []
+    policies = []
+    actions = []
+    values = []
+    players = []
 
     while not game.is_terminal():
         # print(game)
         logger.print("Initial state:\n{}".format(game))
 
         obs = game.observation_tensor()
+        observations.append(obs)
         print_observation(logger, obs)
 
         cur_player = game.current_player()
+        players.append(cur_player)
         legal_actions = game.legal_actions()
         hs = mu.ht(obs)
 
         # logger.print(legal_actions)
         policy, root, _ = mcts_search(mu, obs, legal_actions, n_mcts_sim, False)
+        policies.append(policy)
+        values.append(root.value())
         prevpolicy, prevroot, _ = mcts_search(prevmu, obs, legal_actions, n_mcts_sim, False)
 
         logger.print("Root ({}):".format(root.value()))
@@ -75,6 +85,7 @@ def explore(path, prevmu, mu, game, step, n_mcts_sim=500):
         # logger.print("\n" + node.children_str(state))
 
         next_action = select_action(legal_actions, policy[legal_actions], 0) # np.random.choice(legal_actions, p=policy[legal_actions])
+        actions.append(next_action)
         logger.print(game.action_to_string(game.current_player(), next_action))
         game.apply_action(next_action)
 
@@ -82,6 +93,11 @@ def explore(path, prevmu, mu, game, step, n_mcts_sim=500):
 
     logger.print("Final state:\n{}".format(game))
     logger.print("Returns:\n{}".format(game.returns()))
+
+    # targets = history_to_target(game.num_actions(), (observations, players, actions, policies, values, game.returns()))
+    # for i in range(len(targets)):
+    #   obs, acts0, acts1, acts2, acts3, pols0, pols1, pols2, pols3, pols4, rets0, rets1, rets2, rets3, rets4 = zip(*targets[i:i+1])
+    #   print(mu.check_loss(obs, acts0, acts1, acts2, acts3, pols0, pols1, pols2, pols3, pols4, rets0, rets1, rets2, rets3, rets4))
 
 def select_action(actions, p, temp):
     if temp == 0:

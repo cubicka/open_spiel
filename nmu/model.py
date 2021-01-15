@@ -482,6 +482,30 @@ class MuModel():
 
     return Losses(l1, l2, l3)
 
+  def check_loss(self, obs, acts0, acts1, acts2, acts3, pols0, pols1, pols2, pols3, pols4, rets0, rets1, rets2, rets3, rets4):
+    l1, l2, l3 = self.session.run([self.loss_policy, self.loss_value, self.l2_reg_loss],
+      feed_dict={self.h_input: np.array(obs),
+      self.target_actions[0]: acts0,
+      self.target_actions[1]: acts1,
+      self.target_actions[2]: acts2,
+      self.target_actions[3]: acts3,
+      self.target_policies[0]: pols0,
+      self.target_policies[1]: pols1,
+      self.target_policies[2]: pols2,
+      self.target_policies[3]: pols3,
+      self.target_policies[4]: pols4,
+      self.target_values[0]: rets0,
+      self.target_values[1]: rets1,
+      self.target_values[2]: rets2,
+      self.target_values[3]: rets3,
+      self.target_values[4]: rets4,
+    #   self.target_actions[0]: target_actions[0],
+    #   self.target_policies: np.array(target_policies),
+    #   self.target_values: np.array(target_values)
+      })
+
+    return Losses(l1, l2, l3)
+
   def train_on_batch(self, batch):
     X,Y = reformat_batch(batch, self.a_dim, not self.with_policy)
     l = self.mu.train_on_batch(X,Y)

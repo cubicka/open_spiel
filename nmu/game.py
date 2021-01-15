@@ -1,9 +1,9 @@
 import tictactoe
-# import nimmt
+import nimmt
 
 def get_game(config):
-    # if (config.game == 'nimmt'): game = nimmt.Nimmt()
-    if (config.game == 'tictactoe'): game = tictactoe.TicTacToe()
+    if (config.game == 'nimmt'): game = nimmt.Nimmt()
+    elif (config.game == 'tictactoe'): game = tictactoe.TicTacToe()
     else: raise Exception('Game {} is not found'.format(config.game))
 
     config = config._replace(
