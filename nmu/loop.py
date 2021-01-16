@@ -149,6 +149,8 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         # replay_buffer.data = []
         # print("Collection trajectories")
         with tqdm(total=learn_rate) as pbar:
+        # replay_buffer.data = []
+        # with tqdm(total=10) as pbar:
           for trajectory in trajectory_generator():
             targets = history_to_target(a_dim, trajectory)
             # print(trajectory)
@@ -156,6 +158,7 @@ def learner(*, game, config, actors, broadcast_fn, logger):
             num_trajectories += 1
             num_states += len(targets)
             pbar.update(len(targets))
+            # pbar.update(1)
 
             replay_buffer.extend(targets)
 
@@ -174,6 +177,8 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         # print("Start learning #{}".format(step))
         for epoch in range(len(replay_buffer) // config.train_batch_size):
             data = replay_buffer.sample(config.train_batch_size)
+        # for epoch in range(len(replay_buffer) // 10):
+        #     data = replay_buffer.sample(10)
             obs, acts0, acts1, acts2, acts3, pols0, pols1, pols2, pols3, pols4, rets0, rets1, rets2, rets3, rets4 = zip(*data)
             losses.append(model.train(obs, acts0, acts1, acts2, acts3, pols0, pols1, pols2, pols3, pols4, rets0, rets1, rets2, rets3, rets4))
             # print("Learn Epoch #{}".format(epoch))
@@ -191,8 +196,10 @@ def learner(*, game, config, actors, broadcast_fn, logger):
         print("#{}".format(step), losses)
         # logger.print("Sample data", replay_buffer.sample(1))
 
+        # if step % 10 == 0:
         prev_model.load_checkpoint(config.path + '/cp/checkpoint-' + str(prevn(step%5)))
         explore(config.path, prev_model, model, game.clone(), step % 5)
+        # explore(config.path, prev_model, model, game.clone(), (step//10) % 5)
         return save_path, losses
 
     last_time = time.time() - 60

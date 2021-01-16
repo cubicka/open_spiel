@@ -33,7 +33,7 @@ class FileLogger(object):
 
   def print(self, *args):
     # Date/time with millisecond precision.
-    date_prefix = "[{}]".format(datetime.datetime.now().isoformat(" ")[:-3])
+    date_prefix = "[{}]".format(datetime.datetime.now().isoformat(" ")[11:-3])
     print(date_prefix, *args, file=self._fd, flush=True)
     if self.also_to_stdout:
       print(date_prefix, *args, flush=True)

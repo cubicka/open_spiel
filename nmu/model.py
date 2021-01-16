@@ -93,8 +93,8 @@ def reformat_batch(batch, a_dim, remove_policy=False):
   return X,Y
 
 class MuModel():
-  LAYER_COUNT = 4
-  LAYER_DIM = 512
+  LAYER_COUNT = 3
+  LAYER_DIM = 256
   BN = False
 
   def __init__(self, o_dim, a_dim, s_dim=8, K=5, lr=0.0002, weight_decay=1e-4):

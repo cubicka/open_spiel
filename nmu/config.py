@@ -39,7 +39,7 @@ class Config(collections.namedtuple(
 game_name='nimmt'
 az_config = Config(
     game=game_name,
-    cp_num=0,
+    cp_num=None,
     path='./ma/' + game_name,
     learning_rate=0.001,
     weight_decay=1e-4,
@@ -62,7 +62,7 @@ az_config = Config(
 
     nn_model="mlp",
     nn_width=512,
-    nn_depth=3,
+    nn_depth=4,
     observation_shape=None,
     output_size=None,
     value_size=None,
